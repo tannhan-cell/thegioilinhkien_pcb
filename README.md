@@ -113,3 +113,4 @@ cd /d D:\thegioilinhkien-pcb
 npm run dev
 ```
 Trình duyệt sẽ mở tại địa chỉ: `http://localhost:3000`
+"# thegioilinhkien_pcb" 

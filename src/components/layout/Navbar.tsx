@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
-import { useAuth } from '../../context/AuthContext';
 import { PCB_CONFIG_DATA } from '../../lib/pricing';
 import { 
   Cpu, 
@@ -10,12 +9,14 @@ import {
   Menu, 
   X, 
   PhoneCall, 
-  Layers, 
-  Sparkles, 
-  ShieldAlert, 
-  User, 
   MessageCircle,
-  FileSearch
+  FileSearch,
+  ExternalLink,
+  Layers,
+  Wrench,
+  Sparkles,
+  Info,
+  ShieldCheck
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -24,199 +25,291 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenLookup }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { itemCount, setIsCartOpen } = useCart();
-  const { user, isAdmin } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showBanner, setShowBanner] = useState(true);
 
-  const isActive = (path: string) => location.pathname === path;
+  const queryParams = new URLSearchParams(location.search);
+  const serviceQuery = queryParams.get('service');
+
+  const isPCBActive = location.pathname === '/pcb-quote' && (!serviceQuery || serviceQuery === 'pcb');
+  const isAssemblyActive = (location.pathname === '/pcb-quote' && serviceQuery === 'assembly') || location.pathname === '/pcb-assembly';
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
-      {/* Top Announcement & Quick Contact Bar */}
-      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white text-xs py-1.5 px-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2 truncate">
-            <span className="px-1.5 py-0.5 rounded bg-blue-600 text-[10px] font-bold uppercase font-mono">
-              HOT
-            </span>
-            <span className="text-slate-300 truncate">
-              🔥 Đặt mạch in PCB 2 lớp chỉ từ 150.000đ - Miễn phí soi 3D & kiểm tra DFM!
+    <header className="sticky top-0 z-40 w-full shadow-md">
+      {/* 1. TOP PURPLE NOTIFICATION BANNER (Y HỆT ẢNH 3) */}
+      {showBanner && (
+        <div className="bg-[#5b21b6] text-white text-[12px] sm:text-[13px] font-medium py-1.5 px-4 flex items-center justify-between border-b border-purple-800">
+          <div className="max-w-7xl mx-auto flex-1 flex items-center justify-center gap-2 text-center truncate">
+            <span>📢</span>
+            <span className="font-semibold uppercase tracking-wide">
+              QUÝ KHÁCH CÓ VẤN ĐỀ CẦN HỖ TRỢ VUI LÒNG LIÊN HỆ ADMIN: BÊN MÌNH NHẬN GIA CÔNG MẠCH IN & HÀN LINH KIỆN TỪ SỐ LƯỢNG NHỎ ĐẾN LỚN!
             </span>
           </div>
-
-          <div className="hidden md:flex items-center gap-4 shrink-0 font-mono text-[11px] text-slate-300">
-            <a
-              href={`tel:${PCB_CONFIG_DATA.CONTACT.zaloPhone}`}
-              className="flex items-center gap-1.5 hover:text-white transition"
-            >
-              <PhoneCall className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Hotline: {PCB_CONFIG_DATA.CONTACT.hotlineDisplay}</span>
-            </a>
-            <span className="text-slate-600">|</span>
-            <a
-              href={PCB_CONFIG_DATA.CONTACT.zaloUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 hover:text-cyan-400 transition"
-            >
-              <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Zalo Kỹ Thuật</span>
-            </a>
-            <span className="text-slate-600">|</span>
-            <Link to="/admin" className="text-cyan-300 hover:text-cyan-200 transition font-semibold">
-              Quản Trị Admin
-            </Link>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowBanner(false)}
+            className="p-1 hover:bg-purple-800 rounded transition text-purple-200 hover:text-white shrink-0 ml-2"
+            title="Đóng thông báo"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
-      </div>
+      )}
 
-      {/* Main Navigation Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20 gap-4">
+      {/* 2. MAIN HEADER BAR (Dark Industrial Cyber Tech as in Image 3) */}
+      <div className="bg-[#0b101b] text-white border-b border-slate-800 py-2.5 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           {/* Logo & Slogan */}
-          <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-blue-700 via-blue-600 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-blue-500/25 group-hover:scale-105 transition-transform">
+          <Link to="/" className="flex items-center gap-3 shrink-0 group">
+            <div className="w-10 h-10 rounded-xl bg-[#00f5d4] text-slate-950 flex items-center justify-center shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
               <Cpu className="w-6 h-6" />
             </div>
             <div>
-              <div className="font-extrabold text-base sm:text-lg tracking-tight text-slate-900 group-hover:text-blue-600 transition flex items-center gap-1.5 font-display">
-                <span>THẾ GIỚI LINH KIỆN</span>
-                <span className="px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 text-xs font-mono font-bold">
-                  & PCB
+              <div className="flex items-center gap-2">
+                <span className="font-black text-lg tracking-wider text-white font-mono uppercase">
+                  PCB QUOTE HUB
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-cyan-950 text-[#00f5d4] border border-cyan-500/40 text-[10px] font-mono font-bold tracking-widest">
+                  3D FAB LAB
                 </span>
               </div>
-              <div className="text-[10px] text-slate-500 font-medium tracking-wide hidden sm:block">
-                Linh Kiện Điện Tử • Mạch In 3D • PCBA Assembly
+              <div className="text-[11px] text-slate-400 font-normal">
+                Hệ thống đặt gia công & báo giá bo mạch in tự động
               </div>
             </div>
           </Link>
 
-          {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-1 text-sm font-medium">
-            <Link
-              to="/"
-              className={`px-3 py-2 rounded-xl transition ${
-                isActive('/') ? 'text-blue-600 font-semibold bg-blue-50' : 'text-slate-700 hover:text-blue-600 hover:bg-slate-50'
-              }`}
-            >
-              Trang Chủ
-            </Link>
-            <Link
-              to="/products"
-              className={`px-3 py-2 rounded-xl transition ${
-                isActive('/products') ? 'text-blue-600 font-semibold bg-blue-50' : 'text-slate-700 hover:text-blue-600 hover:bg-slate-50'
-              }`}
-            >
-              Linh Kiện Điện Tử
-            </Link>
-            <Link
-              to="/pcb-services"
-              className={`px-3 py-2 rounded-xl transition ${
-                isActive('/pcb-services') ? 'text-blue-600 font-semibold bg-blue-50' : 'text-slate-700 hover:text-blue-600 hover:bg-slate-50'
-              }`}
-            >
-              Dịch Vụ PCB
-            </Link>
-            <Link
-              to="/pcb-quote"
-              className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 ${
-                isActive('/pcb-quote')
-                  ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-500/20'
-                  : 'bg-cyan-50 text-cyan-800 hover:bg-cyan-100 border border-cyan-200'
-              }`}
-            >
-              <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-              <span>Báo Giá Đặt PCB (3D)</span>
-            </Link>
-            <button
-              type="button"
-              onClick={onOpenLookup}
-              className="px-3 py-2 rounded-xl text-slate-700 hover:text-blue-600 hover:bg-slate-50 transition flex items-center gap-1.5"
-            >
-              <FileSearch className="w-4 h-4 text-slate-500" />
-              <span>Tra Cứu Đơn</span>
+          {/* Search Box on Desktop */}
+          <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center relative flex-1 max-w-sm mx-4">
+            <input
+              type="text"
+              placeholder="Tìm kiếm nhanh chóng với 1 thông số..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-3.5 pr-9 py-1.5 bg-slate-900 border border-slate-700 text-xs text-white rounded-lg focus:outline-none focus:border-cyan-400 font-sans"
+            />
+            <button type="submit" className="absolute right-2.5 text-slate-400 hover:text-cyan-400">
+              <Search className="w-4 h-4" />
             </button>
-          </nav>
+          </form>
 
-          {/* Right Action Icons: Cart, Lookup, Admin */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Quick Lookup Button on Mobile */}
+          {/* Quick Contact & Action Buttons */}
+          <div className="flex items-center gap-2 text-xs font-medium">
+            <a
+              href={PCB_CONFIG_DATA.CONTACT.zaloUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg transition"
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Zalo {PCB_CONFIG_DATA.CONTACT.hotlineDisplay}</span>
+            </a>
+
+            <a
+              href={PCB_CONFIG_DATA.CONTACT.facebook}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg transition"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+              <span>Facebook</span>
+            </a>
+
             <button
               type="button"
               onClick={onOpenLookup}
-              className="lg:hidden p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-xl transition"
-              title="Tra cứu đơn hàng"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-cyan-950 text-cyan-300 border border-cyan-500/40 rounded-lg transition"
             >
-              <FileSearch className="w-5 h-5" />
+              <FileSearch className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Tra cứu đơn</span>
             </button>
 
             {/* Shopping Cart Button */}
             <button
               type="button"
               onClick={() => setIsCartOpen(true)}
-              className="relative p-2.5 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 transition"
-              title="Xem giỏ hàng"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#004d26] hover:bg-[#00381c] text-white rounded-lg transition font-semibold"
             >
-              <ShoppingCart className="w-5 h-5" />
-              {itemCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-600 text-white rounded-full text-[11px] font-bold font-mono flex items-center justify-center shadow-md animate-scale">
-                  {itemCount}
-                </span>
-              )}
+              <ShoppingCart className="w-3.5 h-3.5" />
+              <span>({itemCount}) MỤC</span>
             </button>
 
-            {/* Admin Portal Pill */}
-            <Link
-              to="/admin"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white hover:bg-blue-900 rounded-xl text-xs font-mono font-medium transition shadow-sm"
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Admin Portal</span>
-            </Link>
-
-            {/* Mobile Hamburger Menu Toggle */}
+            {/* Mobile Menu Toggle */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition"
+              className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-lg"
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Mobile Drawer Navigation */}
+      {/* 3. WHITE NAVIGATION BAR WITH ORANGE TAB HIGHLIGHT (Y HỆT ẢNH 1 & ẢNH 2) */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-11 text-xs font-bold uppercase tracking-wider">
+            <nav className="flex items-center gap-1 h-full">
+              <Link
+                to="/products"
+                className={`px-4 h-full flex items-center transition ${
+                  location.pathname === '/products'
+                    ? 'bg-[#f37021] text-white shadow-sm'
+                    : 'text-slate-700 hover:text-[#f37021] hover:bg-slate-50'
+                }`}
+              >
+                LINH KIỆN ĐIỆN TỬ
+              </Link>
+
+              {/* GIA CÔNG MẠCH IN (PCB) */}
+              <Link
+                to="/pcb-quote?service=pcb"
+                className={`px-4 h-full flex items-center transition ${
+                  isPCBActive
+                    ? 'bg-[#f37021] text-white shadow-sm'
+                    : 'text-slate-700 hover:text-[#f37021] hover:bg-slate-50'
+                }`}
+              >
+                GIA CÔNG MẠCH IN
+              </Link>
+
+              {/* GIA CÔNG HÀN LẮP (PCBA) */}
+              <Link
+                to="/pcb-quote?service=assembly"
+                className={`px-4 h-full flex items-center transition ${
+                  isAssemblyActive
+                    ? 'bg-[#f37021] text-white shadow-sm'
+                    : 'text-slate-700 hover:text-[#f37021] hover:bg-slate-50'
+                }`}
+              >
+                GIA CÔNG HÀN LẮP
+              </Link>
+
+              <Link
+                to="/pcb-services"
+                className={`hidden md:flex px-4 h-full items-center transition ${
+                  location.pathname === '/pcb-services'
+                    ? 'bg-[#f37021] text-white shadow-sm'
+                    : 'text-slate-700 hover:text-[#f37021] hover:bg-slate-50'
+                }`}
+              >
+                QUY TRÌNH & DFM
+              </Link>
+
+              <Link
+                to="/contact"
+                className={`hidden md:flex px-4 h-full items-center transition ${
+                  location.pathname === '/contact'
+                    ? 'bg-[#f37021] text-white shadow-sm'
+                    : 'text-slate-700 hover:text-[#f37021] hover:bg-slate-50'
+                }`}
+              >
+                LIÊN HỆ
+              </Link>
+
+              <Link
+                to="/policy"
+                className={`hidden lg:flex px-4 h-full items-center transition ${
+                  location.pathname === '/policy'
+                    ? 'bg-[#f37021] text-white shadow-sm'
+                    : 'text-slate-700 hover:text-[#f37021] hover:bg-slate-50'
+                }`}
+              >
+                AN NINH MẠNG & BẢO MẬT
+              </Link>
+            </nav>
+
+            <div className="hidden sm:flex items-center gap-2 text-slate-500 font-mono text-[11px]">
+              <span className="font-bold text-slate-800">🇻🇳 VN</span>
+              <span>|</span>
+              <span className="hover:text-slate-800 cursor-pointer">🇬🇧 EN</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. DARK GREEN SUBNAV BAR (Y HỆT ẢNH 1: GỬI ĐƠN HÀNG, QUY TRÌNH, THÔNG SỐ...) */}
+      <div className="bg-[#004d26] text-white text-[11px] font-bold uppercase tracking-wider py-1.5 px-4 hidden md:block">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-5">
+            <Link
+              to="/pcb-quote"
+              className="px-2.5 py-1 rounded bg-[#00381c] border border-green-600/60 hover:bg-green-800 transition flex items-center gap-1.5 text-amber-300"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>GỬI ĐƠN HÀNG</span>
+            </Link>
+            <Link to="/pcb-services" className="hover:text-amber-300 transition">
+              QUY TRÌNH ĐẶT HÀNG
+            </Link>
+            <Link to="/pcb-services" className="hover:text-amber-300 transition">
+              THÔNG SỐ KỸ THUẬT
+            </Link>
+            <button type="button" onClick={onOpenLookup} className="hover:text-amber-300 transition uppercase">
+              TỔNG HỢP ĐƠN HÀNG
+            </button>
+            <Link to="/pcb-quote" className="hover:text-amber-300 transition">
+              HÌNH ẢNH 3D
+            </Link>
+            <Link to="/policy" className="hover:text-amber-300 transition">
+              BẢO MẬT GERBER
+            </Link>
+          </div>
+
+          <div className="font-mono text-[11px] text-emerald-300">
+            Hotline: <b>{PCB_CONFIG_DATA.CONTACT.hotlineDisplay}</b>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-6 space-y-2 animate-fade-in shadow-xl">
-          <Link
-            to="/"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-800 hover:bg-slate-100"
-          >
-            Trang Chủ
-          </Link>
+        <div className="md:hidden bg-white border-b border-slate-200 px-4 py-3 space-y-2 text-xs font-bold animate-fade-in shadow-xl">
           <Link
             to="/products"
             onClick={() => setMobileMenuOpen(false)}
-            className="block px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-800 hover:bg-slate-100"
+            className="block py-2 px-3 rounded hover:bg-slate-100 text-slate-800"
           >
-            Linh Kiện Điện Tử
+            LINH KIỆN ĐIỆN TỬ
+          </Link>
+          <Link
+            to="/pcb-quote?service=pcb"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block py-2 px-3 rounded bg-orange-50 text-[#f37021]"
+          >
+            GIA CÔNG MẠCH IN (PCB)
+          </Link>
+          <Link
+            to="/pcb-quote?service=assembly"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block py-2 px-3 rounded bg-orange-50 text-[#f37021]"
+          >
+            GIA CÔNG HÀN LẮP (PCBA)
           </Link>
           <Link
             to="/pcb-services"
             onClick={() => setMobileMenuOpen(false)}
-            className="block px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-800 hover:bg-slate-100"
+            className="block py-2 px-3 rounded hover:bg-slate-100 text-slate-800"
           >
-            Dịch Vụ Gia Công PCB
+            QUY TRÌNH ĐẶT HÀNG & DFM
           </Link>
           <Link
-            to="/pcb-quote"
+            to="/policy"
             onClick={() => setMobileMenuOpen(false)}
-            className="block px-3 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 shadow-md"
+            className="block py-2 px-3 rounded hover:bg-slate-100 text-slate-800"
           >
-            ✨ Báo Giá Đặt PCB & 3D Viewer
+            CHÍNH SÁCH AN NINH MẠNG & BẢO MẬT
           </Link>
           <button
             type="button"
@@ -224,25 +317,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLookup }) => {
               setMobileMenuOpen(false);
               onOpenLookup();
             }}
-            className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-800 hover:bg-slate-100 flex items-center justify-between"
+            className="w-full text-left py-2 px-3 rounded hover:bg-slate-100 text-slate-800 flex items-center justify-between"
           >
-            <span>Tra Cứu Tiến Độ Đơn Hàng</span>
+            <span>TRA CỨU TIẾN ĐỘ ĐƠN HÀNG</span>
             <FileSearch className="w-4 h-4 text-slate-400" />
           </button>
-          <Link
-            to="/admin"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block px-3 py-2.5 rounded-xl text-sm font-mono font-medium text-slate-700 bg-slate-100"
-          >
-            Quản Trị Admin
-          </Link>
-
-          <div className="pt-3 border-t border-slate-200 flex items-center justify-between text-xs font-mono text-slate-500">
-            <span>Hotline: {PCB_CONFIG_DATA.CONTACT.hotlineDisplay}</span>
-            <a href={PCB_CONFIG_DATA.CONTACT.zaloUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 font-semibold">
-              Nhắn Zalo
-            </a>
-          </div>
         </div>
       )}
     </header>

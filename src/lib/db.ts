@@ -7,9 +7,11 @@ import {
   Category, 
   SystemSettings, 
   CommerceOrder, 
-  PCBRequest 
+  PCBRequest,
+  AdminAccount
 } from './types';
 import { DEFAULT_SETTINGS, INITIAL_CATEGORIES, INITIAL_PRODUCTS } from './mockData';
+import { telegramService } from './telegram';
 
 const STORAGE_KEYS = {
   SETTINGS: 'tglk_system_settings_v1',
@@ -17,7 +19,9 @@ const STORAGE_KEYS = {
   CATEGORIES: 'tglk_categories_v1',
   ORDERS: 'tglk_commerce_orders_v1',
   PCB_REQUESTS: 'tglk_pcb_requests_v1',
-  CUSTOMER_PROFILE: 'pcb_quote_customer_profile_v3'
+  CUSTOMER_PROFILE: 'pcb_quote_customer_profile_v3',
+  ADMIN_ACCOUNT: 'tglk_master_admin_v1',
+  ADMIN_SESSION: 'tglk_admin_session_v1'
 };
 
 // Safe localStorage helper
@@ -38,6 +42,46 @@ function setLocal<T>(key: string, value: T): void {
 }
 
 export const db = {
+  // ----------------------------------------
+  // ADMIN AUTHENTICATION (Master Admin Setup)
+  // ----------------------------------------
+  async getAdminAccount(): Promise<AdminAccount | null> {
+    return getLocal<AdminAccount | null>(STORAGE_KEYS.ADMIN_ACCOUNT, null);
+  },
+
+  async registerFirstAdmin(email: string, name: string, password: string): Promise<AdminAccount> {
+    const existing = await this.getAdminAccount();
+    if (existing) {
+      throw new Error('Tài khoản Quản Trị Viên đầu tiên đã được tạo. Không thể đăng ký thêm.');
+    }
+
+    const newAdmin: AdminAccount = {
+      email: email.trim().toLowerCase(),
+      name: name.trim() || 'Admin Master',
+      passwordHash: btoa(password), // Simple base64 encode for secure local match
+      createdAt: new Date().toISOString(),
+    };
+
+    setLocal(STORAGE_KEYS.ADMIN_ACCOUNT, newAdmin);
+    return newAdmin;
+  },
+
+  async verifyAdminLogin(email: string, password: string): Promise<boolean> {
+    const admin = await this.getAdminAccount();
+    if (!admin) return false;
+    const matchEmail = admin.email === email.trim().toLowerCase();
+    const matchPass = admin.passwordHash === btoa(password);
+    return matchEmail && matchPass;
+  },
+
+  getAdminSession(): boolean {
+    return getLocal<boolean>(STORAGE_KEYS.ADMIN_SESSION, false);
+  },
+
+  setAdminSession(logged: boolean): void {
+    setLocal(STORAGE_KEYS.ADMIN_SESSION, logged);
+  },
+
   // ----------------------------------------
   // SETTINGS
   // ----------------------------------------
@@ -72,6 +116,24 @@ export const db = {
       } catch (e) {}
     }
     return getLocal<Category[]>(STORAGE_KEYS.CATEGORIES, INITIAL_CATEGORIES);
+  },
+
+  async saveCategory(cat: Category): Promise<Category> {
+    const categories = await this.getCategories();
+    const index = categories.findIndex(c => c.id === cat.id);
+    if (index >= 0) {
+      categories[index] = cat;
+    } else {
+      categories.push(cat);
+    }
+    setLocal(STORAGE_KEYS.CATEGORIES, categories);
+    return cat;
+  },
+
+  async deleteCategory(id: string): Promise<void> {
+    const categories = await this.getCategories();
+    const filtered = categories.filter(c => c.id !== id);
+    setLocal(STORAGE_KEYS.CATEGORIES, filtered);
   },
 
   // ----------------------------------------
@@ -154,6 +216,11 @@ export const db = {
       } catch (e) {}
     }
 
+    // Send Telegram Notification
+    this.getSettings().then(settings => {
+      telegramService.notifyCommerceOrder(newOrder, settings);
+    });
+
     return newOrder;
   },
 
@@ -206,6 +273,11 @@ export const db = {
         await supabase.from('pcb_requests').insert(newRequest);
       } catch (e) {}
     }
+
+    // Send Telegram Notification
+    this.getSettings().then(settings => {
+      telegramService.notifyPCBRequest(newRequest, settings);
+    });
 
     return newRequest;
   },

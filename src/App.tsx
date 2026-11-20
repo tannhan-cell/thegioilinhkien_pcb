@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { Navbar } from './components/layout/Navbar';
@@ -20,7 +20,7 @@ import { OrderLookupPage } from './pages/OrderLookupPage';
 import { PolicyPage } from './pages/PolicyPage';
 import { ContactPage } from './pages/ContactPage';
 
-// Admin Pages
+// Admin Pages (Bảo Mật: /admin270906)
 import { AdminLayout } from './components/layout/AdminLayout';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminProductsPage } from './pages/admin/AdminProductsPage';
@@ -30,11 +30,11 @@ import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
 
 function AppContent() {
   const location = useLocation();
-  const isAdminRoute = location.pathname.startsWith('/admin');
+  const isAdminRoute = location.pathname.startsWith('/admin270906');
   const [isLookupOpen, setIsLookupOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen flex flex-col bg-[#f4f6f8]">
       {!isAdminRoute && <Navbar onOpenLookup={() => setIsLookupOpen(true)} />}
 
       <div className="flex-1">
@@ -44,7 +44,11 @@ function AppContent() {
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/products/:slug" element={<ProductDetailPage />} />
           <Route path="/pcb-services" element={<PCBServicesPage />} />
+          
+          {/* Dual PCB Fabrication & Assembly Routes */}
           <Route path="/pcb-quote" element={<PCBQuotePage />} />
+          <Route path="/pcb-assembly" element={<PCBQuotePage />} />
+
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/order-success/:code" element={<OrderSuccessPage />} />
@@ -52,12 +56,16 @@ function AppContent() {
           <Route path="/policy" element={<PolicyPage />} />
           <Route path="/contact" element={<ContactPage />} />
 
-          {/* Admin Management Routes */}
-          <Route path="/admin" element={<AdminLayout><AdminDashboardPage /></AdminLayout>} />
-          <Route path="/admin/products" element={<AdminLayout><AdminProductsPage /></AdminLayout>} />
-          <Route path="/admin/pcb-requests" element={<AdminLayout><AdminPCBRequestsPage /></AdminLayout>} />
-          <Route path="/admin/orders" element={<AdminLayout><AdminOrdersPage /></AdminLayout>} />
-          <Route path="/admin/settings" element={<AdminLayout><AdminSettingsPage /></AdminLayout>} />
+          {/* CHE GIẤU HOÀN TOÀN /admin -> Tự động chuyển về trang chủ */}
+          <Route path="/admin" element={<Navigate to="/" replace />} />
+          <Route path="/admin/*" element={<Navigate to="/" replace />} />
+
+          {/* ADMIN PORTAL BẢO MẬT: /admin270906 */}
+          <Route path="/admin270906" element={<AdminLayout><AdminDashboardPage /></AdminLayout>} />
+          <Route path="/admin270906/products" element={<AdminLayout><AdminProductsPage /></AdminLayout>} />
+          <Route path="/admin270906/pcb-requests" element={<AdminLayout><AdminPCBRequestsPage /></AdminLayout>} />
+          <Route path="/admin270906/orders" element={<AdminLayout><AdminOrdersPage /></AdminLayout>} />
+          <Route path="/admin270906/settings" element={<AdminLayout><AdminSettingsPage /></AdminLayout>} />
 
           {/* Fallback */}
           <Route path="*" element={<HomePage onOpenLookup={() => setIsLookupOpen(true)} />} />

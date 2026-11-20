@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../../lib/db';
 import { SystemSettings } from '../../lib/types';
+import { telegramService } from '../../lib/telegram';
 import { 
   Settings, 
   Save, 
@@ -10,7 +11,10 @@ import {
   MapPin, 
   CreditCard, 
   CheckCircle2, 
-  Truck 
+  Truck,
+  Send,
+  BellRing,
+  AlertCircle
 } from 'lucide-react';
 
 export const AdminSettingsPage: React.FC = () => {
@@ -18,6 +22,10 @@ export const AdminSettingsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // Telegram test state
+  const [isTestingTele, setIsTestingTele] = useState(false);
+  const [teleStatusMsg, setTeleStatusMsg] = useState<{ success: boolean; text: string } | null>(null);
 
   useEffect(() => {
     db.getSettings().then((s) => {
@@ -48,36 +56,127 @@ export const AdminSettingsPage: React.FC = () => {
     }
   };
 
+  const handleTestTelegram = async () => {
+    if (!settings) return;
+    setIsTestingTele(true);
+    setTeleStatusMsg(null);
+
+    const res = await telegramService.sendTestMessage(
+      settings.telegramBotToken || '',
+      settings.telegramChatId || ''
+    );
+
+    setTeleStatusMsg({ success: res.success, text: res.message });
+    setIsTestingTele(false);
+  };
+
   if (loading || !settings) {
     return <div className="p-12 text-center text-slate-400 text-xs">Đang tải cài đặt...</div>;
   }
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-4xl">
+    <div className="space-y-6 animate-fade-in max-w-4xl font-sans">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold font-display text-slate-900">
-            Cài Đặt Cửa Hàng & VietQR
+            Cài Đặt Cửa Hàng, Telegram & VietQR
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Tùy chỉnh thông tin liên hệ, hotline, tài khoản ngân hàng và chính sách phí ship
+            Cấu hình nhận thông báo đơn qua Telegram Bot, tài khoản ngân hàng VietQR và hotline
           </p>
         </div>
 
         {savedSuccess && (
           <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-xl text-xs font-semibold animate-fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            Đã lưu cài đặt!
+            Đã lưu cài đặt thành công!
           </span>
         )}
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
-        {/* Contact Info Card */}
+        {/* 1. TELEGRAM BOT NOTIFICATIONS (Tính năng mới theo yêu cầu) */}
+        <div className="bg-white rounded-3xl border-2 border-blue-200 shadow-sm p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 className="font-bold text-sm text-blue-900 uppercase tracking-wider flex items-center gap-2">
+              <BellRing className="w-4 h-4 text-blue-600" />
+              1. Báo Đơn Tự Động Qua Telegram Bot
+            </h3>
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                checked={settings.enableTelegramNotify ?? true}
+                onChange={(e) => handleChange('enableTelegramNotify', e.target.checked)}
+                className="rounded text-blue-600 focus:ring-blue-500"
+              />
+              <span>Bật thông báo Telegram</span>
+            </label>
+          </div>
+
+          <p className="text-xs text-slate-500">
+            Khi có khách đặt mạch PCB, gia công hàn lắp PCBA hoặc mua linh kiện, bot sẽ tự động gửi thông báo chi tiết ngay lập tức vào Telegram của bạn.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">
+                Telegram Bot Token:
+              </label>
+              <input
+                type="text"
+                placeholder="VD: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ..."
+                value={settings.telegramBotToken || ''}
+                onChange={(e) => handleChange('telegramBotToken', e.target.value)}
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                Tạo bot miễn phí bằng cách chat với <b>@BotFather</b> trên Telegram để lấy token.
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">
+                Telegram Chat ID (hoặc Group ID):
+              </label>
+              <input
+                type="text"
+                placeholder="VD: 123456789 hoặc -100123456789"
+                value={settings.telegramChatId || ''}
+                onChange={(e) => handleChange('telegramChatId', e.target.value)}
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                Lấy Chat ID của bạn qua bot <b>@userinfobot</b> trên Telegram.
+              </span>
+            </div>
+          </div>
+
+          {/* Test Telegram button */}
+          <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-slate-100">
+            <button
+              type="button"
+              disabled={isTestingTele}
+              onClick={handleTestTelegram}
+              className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs transition flex items-center gap-1.5 border border-blue-200"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isTestingTele ? 'Đang gửi tin...' : 'Gửi Thử Tin Nhắn Test Telegram'}</span>
+            </button>
+
+            {teleStatusMsg && (
+              <span className={`text-xs font-medium flex items-center gap-1.5 ${teleStatusMsg.success ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {teleStatusMsg.success ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                <span>{teleStatusMsg.text}</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* 2. Contact Info Card */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 space-y-4">
           <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
             <PhoneCall className="w-4 h-4 text-blue-600" />
-            1. Thông Tin Liên Hệ & Thương Hiệu
+            2. Thông Tin Cửa Hàng & Hotline
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -143,11 +242,11 @@ export const AdminSettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* VietQR Bank Account Card */}
+        {/* 3. VietQR Bank Account Card */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 space-y-4">
           <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
             <QrCode className="w-4 h-4 text-emerald-600" />
-            2. Cấu Hình Tài Khoản Ngân Hàng & VietQR (Napas 247)
+            3. Cấu Hình Tài Khoản Ngân Hàng & VietQR (Napas 247)
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
@@ -174,7 +273,7 @@ export const AdminSettingsPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">Tên chủ tài khoản (Viết hoa không dấu):</label>
+              <label className="block text-slate-700 font-semibold mb-1">Tên chủ tài khoản (Viết hoa):</label>
               <input
                 type="text"
                 placeholder="VD: VO TAN NHAN"
@@ -186,11 +285,11 @@ export const AdminSettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Shipping & Announcement Card */}
+        {/* 4. Shipping & Announcement Card */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 space-y-4">
           <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
             <Truck className="w-4 h-4 text-purple-600" />
-            3. Phí Vận Chuyển & Banner Khuyến Mãi
+            4. Phí Vận Chuyển & Banner Khuyến Mãi
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -233,7 +332,7 @@ export const AdminSettingsPage: React.FC = () => {
           <button
             type="submit"
             disabled={isSaving}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl text-xs sm:text-sm transition flex items-center gap-2 shadow-lg shadow-blue-500/20 disabled:opacity-60"
+            className="px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl text-xs sm:text-sm transition flex items-center gap-2 shadow-lg shadow-blue-500/20 disabled:opacity-60"
           >
             {isSaving ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

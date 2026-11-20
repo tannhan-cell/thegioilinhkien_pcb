@@ -9,7 +9,10 @@ import {
   Trash2, 
   X, 
   Save, 
-  Image as ImageIcon 
+  Image as ImageIcon,
+  FolderPlus,
+  Layers,
+  Check
 } from 'lucide-react';
 
 export const AdminProductsPage: React.FC = () => {
@@ -19,6 +22,10 @@ export const AdminProductsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Quick add category state
+  const [showAddCatInline, setShowAddCatInline] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
 
   // Form State
   const [name, setName] = useState('');
@@ -42,6 +49,9 @@ export const AdminProductsPage: React.FC = () => {
       ]);
       setProducts(prodList);
       setCategories(catList);
+      if (catList.length > 0 && !category) {
+        setCategory(catList[0].name);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -52,6 +62,25 @@ export const AdminProductsPage: React.FC = () => {
   useEffect(() => {
     fetchAll();
   }, []);
+
+  const handleAddNewCategory = async () => {
+    if (!newCatName.trim()) return;
+    const catSlug = newCatName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const newCat: Category = {
+      id: 'cat-' + Date.now(),
+      name: newCatName.trim(),
+      slug: catSlug || 'linh-kien-' + Date.now(),
+      description: 'Linh kiện ' + newCatName.trim(),
+      icon: 'fa-microchip',
+      productCount: 0,
+    };
+
+    await db.saveCategory(newCat);
+    await fetchAll();
+    setCategory(newCat.name);
+    setNewCatName('');
+    setShowAddCatInline(false);
+  };
 
   const openNewModal = () => {
     setSelectedProduct(null);
@@ -66,6 +95,7 @@ export const AdminProductsPage: React.FC = () => {
     setThumbnail('https://images.unsplash.com/photo-1518770660439-4636190af475?w=600');
     setDescription('');
     setDatasheetUrl('');
+    setShowAddCatInline(false);
     setIsModalOpen(true);
   };
 
@@ -82,6 +112,7 @@ export const AdminProductsPage: React.FC = () => {
     setThumbnail(p.thumbnail);
     setDescription(p.description);
     setDatasheetUrl(p.datasheetUrl || '');
+    setShowAddCatInline(false);
     setIsModalOpen(true);
   };
 
@@ -139,28 +170,87 @@ export const AdminProductsPage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in font-sans">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold font-display text-slate-900">
-            Quản Lý Danh Mục Linh Kiện
+            Quản Lý Sản Phẩm & Danh Mục Linh Kiện
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Thêm mới, sửa giá, điều chỉnh tồn kho linh kiện điện tử
+            Thêm sản phẩm, tạo thêm các danh mục mới, sửa giá và điều chỉnh tồn kho linh kiện
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openNewModal}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Thêm Linh Kiện Mới</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={openNewModal}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Thêm Linh Kiện Mới</span>
+          </button>
+        </div>
       </div>
 
-      {/* Search */}
+      {/* Categories Bar (View & Manage) */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <Layers className="w-4 h-4 text-blue-600" />
+            Các Danh Mục Hiện Có ({categories.length})
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowAddCatInline(!showAddCatInline)}
+            className="text-xs text-blue-600 hover:underline font-semibold flex items-center gap-1"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Tạo thêm danh mục mới</span>
+          </button>
+        </div>
+
+        {/* Inline Add Category input */}
+        {showAddCatInline && (
+          <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-xl animate-fade-in">
+            <input
+              type="text"
+              placeholder="Nhập tên danh mục mới (VD: IC Nguồn, Màn hình OLED, Cảm biến lực...)"
+              value={newCatName}
+              onChange={(e) => setNewCatName(e.target.value)}
+              className="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+            />
+            <button
+              type="button"
+              onClick={handleAddNewCategory}
+              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>Thêm ngay</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddCatInline(false)}
+              className="p-1.5 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          {categories.map((c) => (
+            <span
+              key={c.id}
+              className="px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-700 font-medium"
+            >
+              {c.name}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <div className="relative">
           <input
@@ -199,7 +289,7 @@ export const AdminProductsPage: React.FC = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="py-3.5 px-4 text-slate-600">{p.category}</td>
+                  <td className="py-3.5 px-4 text-slate-600 font-medium">{p.category}</td>
                   <td className="py-3.5 px-4 font-mono font-bold text-blue-700">
                     {p.price.toLocaleString('vi-VN')} đ
                   </td>
@@ -235,7 +325,7 @@ export const AdminProductsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal Add / Edit */}
+      {/* Modal Add / Edit Product */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
           <div className="relative w-full max-w-2xl max-h-[90vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
@@ -309,26 +399,56 @@ export const AdminProductsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Category selection with inline addition */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Danh mục:</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-700 font-semibold">Danh mục:</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCatInline(!showAddCatInline)}
+                      className="text-blue-600 hover:underline text-[11px] font-semibold"
+                    >
+                      + Thêm danh mục khác
+                    </button>
+                  </div>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-medium"
                   >
                     {categories.map(c => (
                       <option key={c.id} value={c.name}>{c.name}</option>
                     ))}
                   </select>
+
+                  {showAddCatInline && (
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Tên danh mục mới..."
+                        value={newCatName}
+                        onChange={(e) => setNewCatName(e.target.value)}
+                        className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddNewCategory}
+                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold"
+                      >
+                        Thêm
+                      </button>
+                    </div>
+                  )}
                 </div>
+
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Link Ảnh Thumbnail:</label>
                   <input
                     type="url"
                     value={thumbnail}
                     onChange={(e) => setThumbnail(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono text-xs"
                   />
                 </div>
               </div>

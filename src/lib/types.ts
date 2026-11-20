@@ -38,6 +38,18 @@ export interface SystemSettings {
   freeShippingThreshold: number;
   announcementText?: string;
   showAnnouncement?: boolean;
+  
+  // Telegram Bot Notifications
+  telegramBotToken?: string;
+  telegramChatId?: string;
+  enableTelegramNotify?: boolean;
+}
+
+export interface AdminAccount {
+  email: string;
+  name: string;
+  passwordHash: string;
+  createdAt: string;
 }
 
 export interface ProductAttribute {
@@ -115,31 +127,32 @@ export interface PCBSpec {
   id: string | number;
   specId?: string | number;
   tabName: string;
-  serviceType: ServiceType;
+  serviceType: ServiceType; // 'pcb': Gia công mạch in, 'assembly': Gia công hàn lắp
   
   // Board dimensions & base specs
   width: number;
   height: number;
   quantity: string | number;
-  deliveryTime: string; // e.g. "13 - 17 Ngày (Đường bộ)" hoặc "5 - 7 Ngày (Đường bay)"
-  material: string;     // FR-4, Alu, CEM-1, FPC
-  layers: string;       // 1 Lớp, 2 Lớp, 4 Lớp, 6 Lớp
-  thickness: string;    // 0.4mm, 0.8mm, 1.0mm, 1.2mm, 1.6mm, 2.0mm
-  copperWeight: string; // 0.5oz, 1.0oz, 1.5oz, 2.0oz
-  surfaceFinish: string;// Mạ Thiếc, Mạ Vàng (ENIG), Mạ OSP, Mạ Thiếc không chì
-  maskColor: string;    // Xanh lá, Xanh dương, Đỏ, Đen, Trắng, Vàng, Tím, Không phủ
+  deliveryTime: string; // "13 - 17 Ngày (Đường bộ)" hoặc "8 - 12 Ngày (Đường bay)"
+  material: string;     // FR-4, CEM-1, FR-1, 94HB, 99V0, Alu (Nhôm), FPC (Dẻo), Cu (Đồng), Rogers, Teflon
+  layers: string;       // 1 Lớp, 2 Lớp, 4 Lớp, 6 Lớp, 8 -> 20 Lớp
+  thickness: string;    // 0.4mm, 0.6mm, 0.8mm, 1.0mm, 1.2mm, 1.6mm, 2.0mm, 2.5mm, 3.0mm, Theo Stackup
+  copperWeight: string; // 0.5oz, 1.0oz, 1.5oz, 2.0oz, Theo Stackup
+  surfaceFinish: string;// Mạ Thiếc, Mạ Vàng, Mạ OSP, Mạ Thiếc không chì, Không mạ
+  maskColor: string;    // Xanh lá, Xanh dương, Trắng, Đỏ, Đen, Vàng, Tím, Không phủ
   silkscreenColor?: string;
-  minTrace: string;     // 0.15mm (6mils) ↑, 0.1mm (4mils) ↑
-  minDrill: string;     // 0.3mm ↑, 0.2mm ↑
-  bgaPitch: string;     // Không có, >= 0.5mm
-  stencil: string;      // Không, Không khung, Có khung
-  extraRequirements: string[]; // Impedance Control, Mạ nửa lỗ...
-  shippingMethod: string;
+  minTrace: string;     // 0.15mm (6mils) ↑, 0.127mm (5mils) ↑, 0.1mm (4mils) ↑, < 0.1mm (4mils) ↓
+  minDrill: string;     // 0.3mm ↑, 0.25mm ↑, 0.2mm ↑, < 0.2mm ↓
+  bgaPitch: string;     // 0.35mm ↑, 0.3mm ↑, 0.25mm ↑, 0.25mm ↓, Không có
+  stencil: string;      // 370x470 mm, 300x400 mm, ..., Không khung, Không
+  extraRequirements: string[]; // Ghép mạch, Xác nhận file, Impedance Control, Không in linh kiện, Mạ nửa lỗ...
+  shippingMethod: string; // Đến lấy, AhaMove/Grab, ViettelPost, Giao hàng tiết kiệm, VNPost
   
   // Assembly specific fields
-  componentOrderCode?: string;
-  pcbOrderCode?: string;
-  assemblySides?: string[]; // "Mặt Top", "Mặt Bottom"
+  componentOrderCode?: string; // Mã đơn hàng linh kiện (nếu có)
+  pcbOrderCode?: string;       // Mã đơn hàng mạch in (nếu có)
+  assemblySides?: string[];    // "Mặt Top", "Mặt Bottom"
+  assemblyReqs?: string[];     // "SMT mặt TOP", "SMT mặt BOTTOM", "Hàn cắm mặt TOP", "Hàn cắm mặt BOTTOM"
   
   // Attached files for this specific board
   files?: PCBAttachedFile[];

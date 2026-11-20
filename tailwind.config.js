@@ -8,33 +8,31 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-          950: '#172554',
+        cxt: {
+          orange: '#f37021',
+          orangeHover: '#d85d10',
+          green: '#004d26',
+          greenHover: '#00381c',
+          greenLight: '#0d6938',
+          purple: '#5b21b6',
         },
-        cyber: {
-          dark: '#070b14',
-          card: '#0f172a',
-          border: '#1e293b',
-          cyan: '#00f5d4',
-          blue: '#0284c7',
-          neon: '#10b981',
-          amber: '#f59e0b',
-        }
+        brand: {
+          50: '#fff7ed',
+          100: '#ffedd5',
+          200: '#fed7aa',
+          300: '#fdba74',
+          400: '#fb923c',
+          500: '#f37021',
+          600: '#ea580c',
+          700: '#c2410c',
+          800: '#9a3412',
+          900: '#7c2d12',
+        },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
-        display: ['Orbitron', 'sans-serif'],
+        sans: ['"Be Vietnam Pro"', 'Inter', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
+        display: ['"Be Vietnam Pro"', 'sans-serif'],
       }
     },
   },

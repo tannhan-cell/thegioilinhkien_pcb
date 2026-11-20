@@ -124,7 +124,7 @@ export const AdminDashboardPage: React.FC = () => {
               <Layers className="w-4 h-4 text-blue-600" />
               Yêu Cầu PCB Mới Nhất
             </h3>
-            <Link to="/admin/pcb-requests" className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-semibold">
+            <Link to="/admin270906/pcb-requests" className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-semibold">
               <span>Xem tất cả</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
@@ -160,7 +160,7 @@ export const AdminDashboardPage: React.FC = () => {
               <ShoppingCart className="w-4 h-4 text-blue-600" />
               Đơn Mua Linh Kiện Mới Nhất
             </h3>
-            <Link to="/admin/orders" className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-semibold">
+            <Link to="/admin270906/orders" className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-semibold">
               <span>Xem tất cả</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>

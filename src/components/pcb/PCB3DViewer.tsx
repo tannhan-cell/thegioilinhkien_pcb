@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { PCB_CONFIG_DATA } from '../../lib/pricing';
 import { GerberAnalysisResult } from '../../lib/types';
-import { analyzeGerberZip } from '../../lib/gerberParser';
+import { renderGerberStackup } from '../../lib/gerberParser';
 import { 
   RotateCw, 
   Layers, 
@@ -14,8 +14,8 @@ import {
   Maximize2,
   Minimize2,
   RefreshCcw,
-  Sparkles,
-  Ruler
+  Ruler,
+  Sparkles
 } from 'lucide-react';
 
 interface PCB3DViewerProps {
@@ -24,9 +24,13 @@ interface PCB3DViewerProps {
   thickness: string;
   widthMm: number;
   heightMm: number;
+  topSvg?: string | null;
+  bottomSvg?: string | null;
   gerberAnalysis?: GerberAnalysisResult | null;
+  rawGerberFile?: File | null;
+  tabName?: string;
   onDimensionsExtracted?: (w: number, h: number) => void;
-  onAnalysisComplete?: (analysis: GerberAnalysisResult) => void;
+  onAnalysisComplete?: (analysis: GerberAnalysisResult & { topSvg?: string; bottomSvg?: string }) => void;
 }
 
 export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
@@ -35,7 +39,11 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
   thickness,
   widthMm,
   heightMm,
+  topSvg,
+  bottomSvg,
   gerberAnalysis,
+  rawGerberFile,
+  tabName,
   onDimensionsExtracted,
   onAnalysisComplete,
 }) => {
@@ -53,31 +61,86 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
   const [isWireframe, setIsWireframe] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [localAnalysis, setLocalAnalysis] = useState<GerberAnalysisResult | null>(gerberAnalysis || null);
 
-  // Sync external analysis if passed
+  // SVG textures state
+  const [topTexture, setTopTexture] = useState<THREE.Texture | null>(null);
+  const [bottomTexture, setBottomTexture] = useState<THREE.Texture | null>(null);
+
+  // Convert SVG string to Three.js Texture
+  const svgToTexture = (svgStr: string, wMm: number, hMm: number): Promise<THREE.Texture> => {
+    return new Promise((resolve) => {
+      const maxSide = 2048;
+      const scale = maxSide / Math.max(wMm, hMm, 1);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(2, Math.round(wMm * scale));
+      canvas.height = Math.max(2, Math.round(hMm * scale));
+
+      const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+
+      img.onload = () => {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#2d3a24';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        }
+        URL.revokeObjectURL(url);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.anisotropy = 4;
+        texture.needsUpdate = true;
+        resolve(texture);
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(createProceduralTexture(false));
+      };
+
+      img.src = url;
+    });
+  };
+
+  // Convert incoming SVGs into textures
   useEffect(() => {
-    if (gerberAnalysis) setLocalAnalysis(gerberAnalysis);
-  }, [gerberAnalysis]);
+    let cancelled = false;
 
-  // Create high-res canvas texture for PCB traces & pads
-  const createPCBTexture = (isBottom = false) => {
+    if (topSvg && bottomSvg) {
+      Promise.all([
+        svgToTexture(topSvg, widthMm, heightMm),
+        svgToTexture(bottomSvg, widthMm, heightMm),
+      ]).then(([tTex, bTex]) => {
+        if (!cancelled) {
+          setTopTexture(tTex);
+          setBottomTexture(bTex);
+        }
+      });
+    } else {
+      setTopTexture(null);
+      setBottomTexture(null);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [topSvg, bottomSvg, widthMm, heightMm]);
+
+  // Create procedural fallback texture if no Gerber SVG exists yet
+  const createProceduralTexture = (isBottom = false): THREE.Texture => {
     const canvas = document.createElement('canvas');
     canvas.width = 1024;
     canvas.height = 1024;
     const ctx = canvas.getContext('2d');
     if (!ctx) return new THREE.Texture();
 
-    // Background mask color
     const maskInfo = PCB_CONFIG_DATA.MASK_COLORS[maskColor as keyof typeof PCB_CONFIG_DATA.MASK_COLORS] || PCB_CONFIG_DATA.MASK_COLORS['Xanh lá'];
     ctx.fillStyle = maskInfo.hex;
     ctx.fillRect(0, 0, 1024, 1024);
 
-    // Subtle copper ground plane weave
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
-    ctx.lineWidth = 3;
-
+    // Grid hatch
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 2;
     for (let i = 40; i < 980; i += 60) {
       ctx.beginPath();
       ctx.moveTo(40, i);
@@ -90,67 +153,57 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
       ctx.stroke();
     }
 
-    // Bus lines and trace routing
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.lineWidth = 5;
+    // Bus lines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 6;
     ctx.beginPath();
-    ctx.moveTo(100, 200);
-    ctx.lineTo(300, 200);
-    ctx.lineTo(360, 260);
-    ctx.lineTo(680, 260);
+    ctx.moveTo(80, 180);
+    ctx.lineTo(320, 180);
+    ctx.lineTo(400, 260);
+    ctx.lineTo(750, 260);
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(120, 800);
-    ctx.lineTo(320, 800);
-    ctx.lineTo(380, 740);
-    ctx.lineTo(750, 740);
+    ctx.moveTo(120, 820);
+    ctx.lineTo(340, 820);
+    ctx.lineTo(420, 740);
+    ctx.lineTo(820, 740);
     ctx.stroke();
 
-    // Gold / Tin plated pads
+    // Pads
     const finish = PCB_CONFIG_DATA.FINISH_MATERIALS[surfaceFinish as keyof typeof PCB_CONFIG_DATA.FINISH_MATERIALS] || PCB_CONFIG_DATA.FINISH_MATERIALS['Mạ Vàng'];
     ctx.fillStyle = finish.hex;
 
-    // Center QFP / MCU IC footprint
+    // Center IC footprint
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
-    ctx.strokeRect(392, 392, 240, 240);
+    ctx.strokeRect(380, 380, 260, 260);
 
     for (let pin = 0; pin < 24; pin++) {
-      const step = 410 + pin * 9.5;
-      ctx.fillRect(step, 355, 6, 26); // Top pins
-      ctx.fillRect(step, 642, 6, 26); // Bottom pins
-      ctx.fillRect(355, step, 26, 6); // Left pins
-      ctx.fillRect(642, step, 26, 6); // Right pins
+      const step = 400 + pin * 10;
+      ctx.fillRect(step, 340, 6, 26);
+      ctx.fillRect(step, 650, 6, 26);
+      ctx.fillRect(340, step, 26, 6);
+      ctx.fillRect(650, step, 26, 6);
     }
 
-    // SMD chip footprints (0805 / 0603 passive components)
+    // Passives 0805
     for (let r = 0; r < 12; r++) {
       for (let c = 0; c < 12; c++) {
-        if (r >= 3 && r <= 8 && c >= 3 && c <= 8) continue; // Skip center MCU area
+        if (r >= 3 && r <= 8 && c >= 3 && c <= 8) continue;
         const x = 90 + c * 75;
         const y = 90 + r * 75;
         ctx.fillRect(x, y, 12, 8);
         ctx.fillRect(x + 18, y, 12, 8);
-
-        // Micro via drill hole in pad center
-        ctx.fillStyle = '#111827';
-        ctx.beginPath();
-        ctx.arc(x + 6, y + 4, 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(x + 24, y + 4, 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = finish.hex;
       }
     }
 
-    // White silkscreen labels
+    // Silkscreen
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 22px "Consolas", "Courier New", monospace';
+    ctx.font = 'bold 22px monospace';
     ctx.fillText(isBottom ? 'BOTTOM LAYER • THE GIOI LINH KIEN & PCB' : 'TOP LAYER • THE GIOI LINH KIEN & PCB', 80, 80);
-    ctx.font = '16px "Consolas", monospace';
-    ctx.fillText(`SIZE: ${widthMm} x ${heightMm} mm • THICKNESS: ${thickness} • RoHS`, 80, 955);
+    ctx.font = '16px monospace';
+    ctx.fillText(`SIZE: ${widthMm} x ${heightMm} mm • REV 2.0 • RoHS`, 80, 955);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.ClampToEdgeWrapping;
@@ -159,12 +212,11 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     return texture;
   };
 
-  // Rebuild 3D PCB board geometry
+  // Build the 3D PCB Mesh
   const buildPCB = () => {
     if (!sceneRef.current) return;
     const scene = sceneRef.current;
 
-    // Clean old board
     if (pcbGroupRef.current) {
       scene.remove(pcbGroupRef.current);
       pcbGroupRef.current = null;
@@ -181,7 +233,7 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     const finish = PCB_CONFIG_DATA.FINISH_MATERIALS[surfaceFinish as keyof typeof PCB_CONFIG_DATA.FINISH_MATERIALS] || PCB_CONFIG_DATA.FINISH_MATERIALS['Mạ Vàng'];
     const thickVal = parseFloat(thickness) || 1.6;
 
-    // Normalizing 3D scale: 100mm = 40 units in 3D viewport
+    // Normalizing 3D scale: 100mm = 40 units
     const sx = Math.max(8, (widthMm / 100) * 40);
     const sy = Math.max(8, (heightMm / 100) * 40);
     const sz = Math.max(0.4, (thickVal / 1.6) * 0.9);
@@ -189,7 +241,7 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     // 1. FR-4 Core Substrate
     const coreGeo = new THREE.BoxGeometry(sx, sy, sz);
     const coreMat = new THREE.MeshStandardMaterial({
-      color: 0x4a5d23, // FR-4 translucent olive green
+      color: 0x4a5d23,
       roughness: 0.85,
       metalness: 0.05,
       wireframe: isWireframe,
@@ -199,11 +251,11 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     coreMesh.receiveShadow = true;
     pcbGroup.add(coreMesh);
 
-    // 2. Top Solder Mask
-    const topTex = createPCBTexture(false);
+    // 2. Top Solder Mask / Real Gerber Texture
+    const topTex = topTexture || createProceduralTexture(false);
     const topGeo = new THREE.PlaneGeometry(sx, sy);
     const topMat = new THREE.MeshStandardMaterial({
-      color: maskInfo.hex,
+      color: topTexture ? 0xffffff : maskInfo.hex,
       map: topTex,
       roughness: maskInfo.roughness,
       metalness: maskInfo.metalness,
@@ -214,11 +266,11 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     topMesh.receiveShadow = true;
     tracesGroup.add(topMesh);
 
-    // 3. Bottom Solder Mask
-    const botTex = createPCBTexture(true);
+    // 3. Bottom Solder Mask / Real Gerber Texture
+    const botTex = bottomTexture || createProceduralTexture(true);
     const botGeo = new THREE.PlaneGeometry(sx, sy);
     const botMat = new THREE.MeshStandardMaterial({
-      color: maskInfo.hex,
+      color: bottomTexture ? 0xffffff : maskInfo.hex,
       map: botTex,
       roughness: maskInfo.roughness,
       metalness: maskInfo.metalness,
@@ -226,54 +278,57 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     });
     const botMesh = new THREE.Mesh(botGeo, botMat);
     botMesh.position.z = -sz / 2 - 0.05;
-    botMesh.rotation.y = Math.PI; // Flip for underside
+    botMesh.rotation.y = Math.PI;
     botMesh.receiveShadow = true;
     tracesGroup.add(botMesh);
 
-    // 4. Center SMD Microcontroller Chip (realistic 3D appearance)
-    const icGeo = new THREE.BoxGeometry(sx * 0.22, sy * 0.22, 0.45);
-    const icMat = new THREE.MeshStandardMaterial({
-      color: 0x18181b,
-      roughness: 0.4,
-      metalness: 0.2,
-      wireframe: isWireframe,
-    });
-    const icMesh = new THREE.Mesh(icGeo, icMat);
-    icMesh.position.z = sz / 2 + 0.28;
-    icMesh.castShadow = true;
-    pcbGroup.add(icMesh);
+    // Only add sample components and mount holes if NOT showing real Gerber
+    if (!topTexture) {
+      // SMD Center Chip
+      const icGeo = new THREE.BoxGeometry(sx * 0.22, sy * 0.22, 0.45);
+      const icMat = new THREE.MeshStandardMaterial({
+        color: 0x18181b,
+        roughness: 0.4,
+        metalness: 0.2,
+        wireframe: isWireframe,
+      });
+      const icMesh = new THREE.Mesh(icGeo, icMat);
+      icMesh.position.z = sz / 2 + 0.28;
+      icMesh.castShadow = true;
+      pcbGroup.add(icMesh);
 
-    // 5. Plated Mounting Holes in 4 corners
-    const holeRadius = Math.min(sx, sy) * 0.04;
-    const holeOffsets = [
-      [-sx / 2 + holeRadius * 2, -sy / 2 + holeRadius * 2],
-      [sx / 2 - holeRadius * 2, -sy / 2 + holeRadius * 2],
-      [-sx / 2 + holeRadius * 2, sy / 2 - holeRadius * 2],
-      [sx / 2 - holeRadius * 2, sy / 2 - holeRadius * 2],
-    ];
+      // Plated Holes
+      const holeRadius = Math.min(sx, sy) * 0.04;
+      const holeOffsets = [
+        [-sx / 2 + holeRadius * 2, -sy / 2 + holeRadius * 2],
+        [sx / 2 - holeRadius * 2, -sy / 2 + holeRadius * 2],
+        [-sx / 2 + holeRadius * 2, sy / 2 - holeRadius * 2],
+        [sx / 2 - holeRadius * 2, sy / 2 - holeRadius * 2],
+      ];
 
-    const padMat = new THREE.MeshStandardMaterial({
-      color: finish.hex,
-      roughness: finish.roughness,
-      metalness: finish.metalness,
-    });
+      const padMat = new THREE.MeshStandardMaterial({
+        color: finish.hex,
+        roughness: finish.roughness,
+        metalness: finish.metalness,
+      });
 
-    holeOffsets.forEach(([hx, hy]) => {
-      const ringGeo = new THREE.RingGeometry(holeRadius * 0.5, holeRadius * 1.25, 24);
-      const ringTop = new THREE.Mesh(ringGeo, padMat);
-      ringTop.position.set(hx, hy, sz / 2 + 0.06);
-      tracesGroup.add(ringTop);
+      holeOffsets.forEach(([hx, hy]) => {
+        const ringGeo = new THREE.RingGeometry(holeRadius * 0.5, holeRadius * 1.25, 24);
+        const ringTop = new THREE.Mesh(ringGeo, padMat);
+        ringTop.position.set(hx, hy, sz / 2 + 0.06);
+        tracesGroup.add(ringTop);
 
-      const ringBot = new THREE.Mesh(ringGeo, padMat);
-      ringBot.position.set(hx, hy, -sz / 2 - 0.06);
-      ringBot.rotation.y = Math.PI;
-      tracesGroup.add(ringBot);
-    });
+        const ringBot = new THREE.Mesh(ringGeo, padMat);
+        ringBot.position.set(hx, hy, -sz / 2 - 0.06);
+        ringBot.rotation.y = Math.PI;
+        tracesGroup.add(ringBot);
+      });
+    }
 
     scene.add(pcbGroup);
   };
 
-  // Mount Three.js WebGL Scene with ResizeObserver
+  // Initialize Three.js
   useEffect(() => {
     if (!containerRef.current) return;
     const container = containerRef.current;
@@ -281,20 +336,16 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     const width = container.clientWidth || 600;
     const height = container.clientHeight || 420;
 
-    // Scene
     const scene = new THREE.Scene();
     sceneRef.current = scene;
 
-    // Camera
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 1000);
     camera.position.set(0, -55, 55);
     cameraRef.current = camera;
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ 
       antialias: true, 
       alpha: true, 
-      powerPreference: 'high-performance',
       preserveDrawingBuffer: true 
     });
     renderer.setSize(width, height);
@@ -308,7 +359,6 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
-    // OrbitControls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
@@ -334,10 +384,8 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     bottomFill.position.set(0, 0, -60);
     scene.add(bottomFill);
 
-    // Initial PCB build
     buildPCB();
 
-    // Render loop
     let animationFrameId: number;
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
@@ -349,7 +397,6 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     };
     animate();
 
-    // ResizeObserver ensures canvas NEVER collapses to 0 height!
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width: w, height: h } = entry.contentRect;
@@ -372,18 +419,18 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     };
   }, []);
 
-  // Update PCB on spec changes
+  // Rebuild mesh when specs, textures or tab changes
   useEffect(() => {
     buildPCB();
-  }, [maskColor, surfaceFinish, thickness, widthMm, heightMm, isWireframe]);
+  }, [maskColor, surfaceFinish, thickness, widthMm, heightMm, isWireframe, topTexture, bottomTexture]);
 
-  // Handle Layer Explode
+  // Explode effect
   useEffect(() => {
     if (!tracesGroupRef.current) return;
     tracesGroupRef.current.position.z = explodeFactor * 9;
   }, [explodeFactor]);
 
-  // Set camera view angles
+  // View angle controls
   const setCameraView = (view: 'top' | 'bottom' | 'iso') => {
     if (!cameraRef.current || !controlsRef.current) return;
     const cam = cameraRef.current;
@@ -403,13 +450,7 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     controlsRef.current.update();
   };
 
-  const handleResetCamera = () => {
-    setCameraView('iso');
-    setIsAutoRotating(true);
-    setExplodeFactor(0);
-  };
-
-  // Upload and parse Gerber ZIP
+  // Handle direct file upload from 3D Viewer overlay (also syncs with active spec!)
   const handleGerberFileUpload = async (file: File) => {
     if (!file.name.toLowerCase().endsWith('.zip')) {
       alert('Vui lòng chọn file nén .ZIP chứa các lớp Gerber.');
@@ -418,8 +459,10 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
 
     setIsAnalyzing(true);
     try {
-      const result = await analyzeGerberZip(file);
-      setLocalAnalysis(result);
+      const maskInfo = PCB_CONFIG_DATA.MASK_COLORS[maskColor as keyof typeof PCB_CONFIG_DATA.MASK_COLORS] || PCB_CONFIG_DATA.MASK_COLORS['Xanh lá'];
+      const finishInfo = PCB_CONFIG_DATA.FINISH_MATERIALS[surfaceFinish as keyof typeof PCB_CONFIG_DATA.FINISH_MATERIALS] || PCB_CONFIG_DATA.FINISH_MATERIALS['Mạ Vàng'];
+      
+      const result = await renderGerberStackup(file, maskInfo.hex, finishInfo.hex);
 
       if (result.success && result.boardWidthMm && result.boardHeightMm) {
         if (onDimensionsExtracted) {
@@ -431,12 +474,7 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
         onAnalysisComplete(result);
       }
     } catch (e: any) {
-      const errResult: GerberAnalysisResult = {
-        success: false,
-        message: 'Lỗi khi đọc file ZIP: ' + (e.message || 'Lỗi không xác định'),
-      };
-      setLocalAnalysis(errResult);
-      if (onAnalysisComplete) onAnalysisComplete(errResult);
+      alert('Lỗi phân tích Gerber: ' + e.message);
     } finally {
       setIsAnalyzing(false);
     }
@@ -497,7 +535,11 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
           </button>
           <button
             type="button"
-            onClick={handleResetCamera}
+            onClick={() => {
+              setCameraView('iso');
+              setIsAutoRotating(true);
+              setExplodeFactor(0);
+            }}
             className="p-1.5 rounded text-xs text-slate-400 hover:text-slate-200 transition"
             title="Đặt lại góc nhìn mặc định"
           >
@@ -507,6 +549,12 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
 
         {/* Right Info Badges & Fullscreen */}
         <div className="flex items-center gap-2 pointer-events-auto">
+          {tabName && (
+            <span className="px-2.5 py-1 rounded-lg bg-sky-950 border border-sky-500/50 text-sky-300 font-mono text-xs font-bold shadow-lg">
+              {tabName}
+            </span>
+          )}
+
           <div className="flex items-center gap-2 px-3 py-1 bg-slate-900/95 backdrop-blur border border-sky-500/40 rounded-lg font-mono text-xs text-slate-200 shadow-lg">
             <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
             <span className="font-bold text-sky-300">{widthMm} x {heightMm} mm</span>
@@ -552,62 +600,54 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
           <span className="font-mono text-sky-400 w-9">{Math.round(explodeFactor * 100)}%</span>
         </div>
 
-        {/* Gerber Drop / Upload shortcut */}
+        {/* Status Indicator */}
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <label className="flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-950/70 hover:bg-sky-900/80 text-sky-300 border border-sky-500/50 rounded-lg cursor-pointer transition shadow">
-            <FileCode className="w-4 h-4 text-sky-400" />
-            <span className="font-semibold">{isAnalyzing ? 'Đang phân tích...' : 'Xem 3D Gerber .ZIP'}</span>
-            <input
-              type="file"
-              accept=".zip,.rar"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleGerberFileUpload(file);
-              }}
-            />
-          </label>
+          {topTexture ? (
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/70 border border-emerald-500/50 rounded-lg text-emerald-300 font-semibold">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Đang hiển thị Gerber thực tế 3D</span>
+            </span>
+          ) : (
+            <label className="flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-950/70 hover:bg-sky-900/80 text-sky-300 border border-sky-500/50 rounded-lg cursor-pointer transition shadow">
+              <FileCode className="w-4 h-4 text-sky-400" />
+              <span className="font-semibold">{isAnalyzing ? 'Đang dựng hình 3D...' : 'Xem 3D Gerber .ZIP'}</span>
+              <input
+                type="file"
+                accept=".zip,.rar"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleGerberFileUpload(file);
+                }}
+              />
+            </label>
+          )}
         </div>
       </div>
 
       {/* 4. GERBER AUTO-MEASURE & ANALYSIS RESULT BANNER */}
-      {localAnalysis && (
+      {gerberAnalysis && (
         <div className="px-4 py-2 bg-slate-900 border-t border-slate-800 text-xs shrink-0">
-          {localAnalysis.success ? (
+          {gerberAnalysis.success ? (
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 text-emerald-400 font-semibold font-mono">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>ĐÃ XEM 3D & PHÂN TÍCH: {localAnalysis.fileName} ({localAnalysis.layerCount} lớp)</span>
+                  <span>ĐÃ XEM 3D & PHÂN TÍCH: {gerberAnalysis.fileName} ({gerberAnalysis.layerCount} lớp)</span>
                 </div>
                 
-                {localAnalysis.boardWidthMm && localAnalysis.boardHeightMm && (
+                {gerberAnalysis.boardWidthMm && gerberAnalysis.boardHeightMm && (
                   <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-sky-950 text-sky-300 border border-sky-500/40 rounded text-[11px] font-mono font-bold">
                     <Ruler className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Auto Kích thước: {localAnalysis.boardWidthMm} x {localAnalysis.boardHeightMm} mm</span>
+                    <span>Auto Kích thước: {gerberAnalysis.boardWidthMm} x {gerberAnalysis.boardHeightMm} mm</span>
                   </div>
                 )}
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono text-slate-300">
-                <div className="bg-slate-950/80 p-1.5 rounded border border-slate-800 truncate">
-                  <span className="text-slate-500">Top Cu:</span> <span className="text-sky-300">{localAnalysis.layers?.topCopper || '---'}</span>
-                </div>
-                <div className="bg-slate-950/80 p-1.5 rounded border border-slate-800 truncate">
-                  <span className="text-slate-500">Bot Cu:</span> <span className="text-sky-300">{localAnalysis.layers?.botCopper || '---'}</span>
-                </div>
-                <div className="bg-slate-950/80 p-1.5 rounded border border-slate-800 truncate">
-                  <span className="text-slate-500">Outline:</span> <span className="text-emerald-400">{localAnalysis.layers?.outline || '---'}</span>
-                </div>
-                <div className="bg-slate-950/80 p-1.5 rounded border border-slate-800 truncate">
-                  <span className="text-slate-500">Khoan Drill:</span> <span className="text-amber-400">{localAnalysis.layers?.drill || '---'}</span>
-                </div>
               </div>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-rose-400">
               <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>{localAnalysis.message}</span>
+              <span>{gerberAnalysis.message}</span>
             </div>
           )}
         </div>

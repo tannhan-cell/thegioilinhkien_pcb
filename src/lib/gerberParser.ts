@@ -313,3 +313,102 @@ export async function analyzeGerberZip(file: File): Promise<GerberAnalysisResult
     };
   }
 }
+
+declare global {
+  interface Window {
+    pcbStackup?: (layers: any[], options?: any) => Promise<any>;
+    whatsThatGerber?: (filenames: string[]) => Record<string, { type?: string; side?: string }>;
+  }
+}
+
+function looksLikeGerberContent(text: string, type?: string): boolean {
+  if (!text) return false;
+  if (type === 'drill') return /M48|^T\d+/m.test(text);
+  return /%FS|%MO|G04|D0?[123]\*/.test(text);
+}
+
+/**
+ * Render toàn bộ file Gerber ZIP thành hình ảnh SVG thực tế bằng pcb-stackup
+ * Trả về SVG mặt Top, mặt Bottom và kích thước thực tế (mm)
+ */
+export async function renderGerberStackup(
+  file: File, 
+  maskHex = '#0a632d', 
+  finishHex = '#f59e0b'
+): Promise<GerberAnalysisResult & { topSvg?: string; bottomSvg?: string }> {
+  // Trước tiên, phân tích bounding box và các lớp
+  const baseAnalysis = await analyzeGerberZip(file);
+  if (!baseAnalysis.success) return baseAnalysis;
+
+  if (typeof window === 'undefined' || !window.pcbStackup) {
+    return baseAnalysis;
+  }
+
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const filenames = Object.keys(zip.files).filter(name => !zip.files[name].dir && !name.startsWith('__MACOSX/'));
+    
+    const identify = window.whatsThatGerber || (() => ({}));
+    const types = identify(filenames);
+    const gerberLayers: any[] = [];
+
+    for (const name of filenames) {
+      const info = types[name] || {};
+      if (!info.type || info.type === 'drawing') continue;
+
+      const text = await zip.files[name].async('text');
+      if (!looksLikeGerberContent(text, info.type)) continue;
+
+      gerberLayers.push({
+        filename: name,
+        gerber: text,
+        type: info.type,
+        side: info.side
+      });
+    }
+
+    if (gerberLayers.length === 0) {
+      return baseAnalysis;
+    }
+
+    const options = {
+      outlineGapFill: 0.011,
+      color: {
+        fr4: '#2d3a24',
+        cu: '#cccccc',
+        cf: finishHex,
+        sm: maskHex,
+        ss: '#ffffff',
+        sp: 'rgba(0, 0, 0, 0)',
+        out: '#000000'
+      }
+    };
+
+    let stackup;
+    try {
+      stackup = await window.pcbStackup(gerberLayers, options);
+    } catch (e) {
+      stackup = await window.pcbStackup(gerberLayers, { ...options, maskWithOutline: false });
+    }
+
+    if (!stackup || !stackup.top) {
+      return baseAnalysis;
+    }
+
+    const toMm = (v: number) => (stackup.top.units === 'in' ? v * 25.4 : v);
+    const realW = Math.round(toMm(stackup.top.width) * 10) / 10;
+    const realH = Math.round(toMm(stackup.top.height) * 10) / 10;
+
+    return {
+      ...baseAnalysis,
+      boardWidthMm: realW > 0 ? realW : baseAnalysis.boardWidthMm,
+      boardHeightMm: realH > 0 ? realH : baseAnalysis.boardHeightMm,
+      topSvg: stackup.top.svg,
+      bottomSvg: stackup.bottom?.svg,
+      message: `Đã dựng hình 3D thực tế từ Gerber: ${realW} x ${realH} mm (${gerberLayers.length} lớp)`
+    };
+  } catch (err) {
+    console.warn('pcbStackup rendering fallback to base coordinate parser:', err);
+    return baseAnalysis;
+  }
+}

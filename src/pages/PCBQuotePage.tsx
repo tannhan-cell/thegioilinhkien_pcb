@@ -144,9 +144,23 @@ export const PCBQuotePage: React.FC = () => {
               thickness={currentSpec.thickness}
               widthMm={currentSpec.width}
               heightMm={currentSpec.height}
-              gerberAnalysis={gerberAnalysis}
+              topSvg={currentSpec.topSvg}
+              bottomSvg={currentSpec.bottomSvg}
+              gerberAnalysis={currentSpec.gerberAnalysis || gerberAnalysis}
+              rawGerberFile={currentSpec.rawGerberFile}
+              tabName={currentSpec.tabName}
               onDimensionsExtracted={handleDimensionsExtracted}
-              onAnalysisComplete={(res) => setGerberAnalysis(res)}
+              onAnalysisComplete={(res) => {
+                setGerberAnalysis(res);
+                setCurrentSpec(prev => ({
+                  ...prev,
+                  width: res.boardWidthMm || prev.width,
+                  height: res.boardHeightMm || prev.height,
+                  topSvg: res.topSvg || prev.topSvg,
+                  bottomSvg: res.bottomSvg || prev.bottomSvg,
+                  gerberAnalysis: res,
+                }));
+              }}
             />
           </div>
         </div>

@@ -159,6 +159,12 @@ export interface PCBSpec {
   
   // Attached files for this specific board
   files?: PCBAttachedFile[];
+
+  // 3D Gerber visual inspection state per board
+  rawGerberFile?: File | null;
+  topSvg?: string | null;
+  bottomSvg?: string | null;
+  gerberAnalysis?: GerberAnalysisResult | null;
 }
 
 export interface PCBAttachedFile {

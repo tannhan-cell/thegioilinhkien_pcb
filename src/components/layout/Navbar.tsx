@@ -163,20 +163,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLookup }) => {
               <span>Tra cứu đơn</span>
             </button>
 
-            {/* Admin / Account Portal */}
-            <Link
-              to="/admin270906"
-              className="flex items-center gap-1.5 text-slate-700 hover:text-sky-600 font-medium transition group"
-            >
-              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-sky-50 transition">
-                <User className="w-4 h-4 text-slate-600 group-hover:text-sky-600" />
-              </div>
-              <div className="hidden sm:block text-left">
-                <div className="text-[10px] text-slate-400">Tài khoản</div>
-                <div className="font-bold -mt-0.5">Quản trị</div>
-              </div>
-            </Link>
-
             {/* Shopping Cart Button */}
             <button
               type="button"

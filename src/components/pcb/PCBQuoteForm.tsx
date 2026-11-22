@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PCBSpec, PCBRequest, PCBAttachedFile, ServiceType } from '../../lib/types';
 import { estimatePCBPrice, PCB_CONFIG_DATA } from '../../lib/pricing';
-import { analyzeGerberZip } from '../../lib/gerberParser';
+import { analyzeGerberZip, renderGerberStackup } from '../../lib/gerberParser';
 import { db } from '../../lib/db';
 import { 
   Plus, 
@@ -96,27 +96,30 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
   const [assemblyTabId, setAssemblyTabId] = useState<number>(1);
   const [assemblyTabCounter, setAssemblyTabCounter] = useState<number>(1);
 
-  // Customer Contact Fields
-  const [customerCode, setCustomerCode] = useState('CXT' + Math.floor(100000 + Math.random() * 900000));
-  const [customerName, setCustomerName] = useState('Võ Tấn Nhân');
-  const [customerPhone, setCustomerPhone] = useState('0392733577');
+  // Customer Contact Fields - Khởi tạo hoàn toàn rỗng, không mặc định sẵn
+  const [customerCode, setCustomerCode] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [notes, setNotes] = useState('');
-  const [termsAccepted, setTermsAccepted] = useState(true);
+  const [termsAccepted, setTermsAccepted] = useState(false); // Mặc định chưa tick
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [parsingNotice, setParsingNotice] = useState<string | null>(null);
 
   const isPCB = activeService === 'pcb';
 
-  // Load customer profile from DB
+  // Load customer profile from DB CHỈ KHI khách đã từng lưu / đặt hàng từ lần trước
   useEffect(() => {
     const profile = db.getCustomerProfile();
-    if (profile.name) setCustomerName(profile.name);
-    if (profile.phone) setCustomerPhone(profile.phone);
-    if (profile.email) setCustomerEmail(profile.email);
-    if (profile.address) setCustomerAddress(profile.address);
+    if (profile && profile.name) setCustomerName(profile.name);
+    if (profile && profile.phone) {
+      setCustomerPhone(profile.phone);
+      setCustomerCode('CXT' + profile.phone.replace(/\D/g, '').slice(-6));
+    }
+    if (profile && profile.email) setCustomerEmail(profile.email);
+    if (profile && profile.address) setCustomerAddress(profile.address);
   }, []);
 
   // Get active spec according to current activeService
@@ -133,11 +136,13 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
     if (isPCB) {
       setPcbSpecs(prev => {
         const updated = { ...prev[pcbTabId], ...fields };
+        onSpecChange(updated);
         return { ...prev, [pcbTabId]: updated };
       });
     } else {
       setAssemblySpecs(prev => {
         const updated = { ...prev[assemblyTabId], ...fields };
+        onSpecChange(updated);
         return { ...prev, [assemblyTabId]: updated };
       });
     }
@@ -157,6 +162,10 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
         tabName: `THÔNG SỐ ${nextId}`,
         serviceType: 'pcb',
         files: [],
+        rawGerberFile: null,
+        topSvg: null,
+        bottomSvg: null,
+        gerberAnalysis: null,
       };
       setPcbSpecs(prev => ({ ...prev, [nextId]: newSpec }));
       setPcbTabId(nextId);
@@ -172,6 +181,10 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
         tabName: `THÔNG SỐ ${nextId}`,
         serviceType: 'assembly',
         files: [],
+        rawGerberFile: null,
+        topSvg: null,
+        bottomSvg: null,
+        gerberAnalysis: null,
       };
       setAssemblySpecs(prev => ({ ...prev, [nextId]: newSpec }));
       setAssemblyTabId(nextId);
@@ -221,18 +234,26 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
     const updatedFiles = [...curFiles, ...newFiles];
     updateCurrentSpecField({ files: updatedFiles });
 
-    // If it's a Gerber ZIP file in PCB mode: Auto extract dimensions!
+    // If it's a Gerber ZIP file in PCB mode: Auto extract dimensions & build 3D Gerber!
     const zipFile = Array.from(fileList).find(f => f.name.toLowerCase().endsWith('.zip'));
     if (isPCB && zipFile) {
+      setParsingNotice('Đang phân tích lớp Gerber và dựng mô hình 3D...');
       try {
-        const analysis = await analyzeGerberZip(zipFile);
-        if (analysis.success && analysis.boardWidthMm && analysis.boardHeightMm) {
+        const maskInfo = PCB_CONFIG_DATA.MASK_COLORS[activeSpec.maskColor as keyof typeof PCB_CONFIG_DATA.MASK_COLORS] || PCB_CONFIG_DATA.MASK_COLORS['Xanh lá'];
+        const finishInfo = PCB_CONFIG_DATA.FINISH_MATERIALS[activeSpec.surfaceFinish as keyof typeof PCB_CONFIG_DATA.FINISH_MATERIALS] || PCB_CONFIG_DATA.FINISH_MATERIALS['Mạ Vàng'];
+        
+        const stackupResult = await renderGerberStackup(zipFile, maskInfo.hex, finishInfo.hex);
+        if (stackupResult.success && stackupResult.boardWidthMm && stackupResult.boardHeightMm) {
           updateCurrentSpecField({
-            width: analysis.boardWidthMm,
-            height: analysis.boardHeightMm,
+            width: stackupResult.boardWidthMm,
+            height: stackupResult.boardHeightMm,
+            rawGerberFile: zipFile,
+            topSvg: stackupResult.topSvg || null,
+            bottomSvg: stackupResult.bottomSvg || null,
+            gerberAnalysis: stackupResult,
             files: updatedFiles,
           });
-          setParsingNotice(`✓ Đã tự động nhận diện kích thước chính xác từ file Gerber: ${analysis.boardWidthMm} x ${analysis.boardHeightMm} mm`);
+          setParsingNotice(`✓ Đã tự động nhận diện kích thước & Dựng 3D Gerber: ${stackupResult.boardWidthMm} x ${stackupResult.boardHeightMm} mm`);
         }
       } catch (err) {
         console.warn('Lỗi phân tích file Gerber:', err);
@@ -255,7 +276,17 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
     setErrorMessage('');
 
     if (!termsAccepted) {
-      setErrorMessage('Quý khách vui lòng tích chọn đồng ý với Điều khoản sử dụng, Chính sách bảo mật và Chính sách hỗ trợ.');
+      setErrorMessage('Quý khách vui lòng đánh dấu tích đồng ý với Điều khoản sử dụng, Chính sách bảo mật và Chính sách hỗ trợ trước khi gửi.');
+      return;
+    }
+
+    if (!customerName.trim()) {
+      setErrorMessage('Vui lòng nhập Họ tên người liên hệ.');
+      return;
+    }
+
+    if (!customerPhone.trim() || customerPhone.replace(/\D/g, '').length < 9) {
+      setErrorMessage('Vui lòng nhập Số điện thoại hợp lệ (tối thiểu 9 chữ số) để kỹ thuật viên liên hệ báo giá!');
       return;
     }
 
@@ -328,16 +359,18 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
               <label className="text-[12px] font-medium text-slate-600">Mã KH / Số ĐT:</label>
               <input
                 type="text"
+                placeholder="Tự động tạo theo SĐT..."
                 value={customerCode}
                 onChange={(e) => setCustomerCode(e.target.value)}
                 className="col-span-2 px-2.5 py-1 bg-slate-50 border border-slate-300 rounded text-xs font-mono"
               />
             </div>
             <div className="grid grid-cols-3 items-center gap-2">
-              <label className="text-[12px] font-medium text-slate-600">Họ tên:</label>
+              <label className="text-[12px] font-medium text-slate-600">Họ tên <span className="text-red-500">*</span>:</label>
               <input
                 type="text"
                 required
+                placeholder="Nhập họ và tên..."
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 className="col-span-2 px-2.5 py-1 bg-white border border-slate-300 rounded text-xs font-semibold"
@@ -348,8 +381,17 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
               <input
                 type="tel"
                 required
+                placeholder="Nhập số điện thoại..."
                 value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
+                onChange={(e) => {
+                  setCustomerPhone(e.target.value);
+                  if (!customerCode || customerCode.startsWith('CXT')) {
+                    const digits = e.target.value.replace(/\D/g, '');
+                    if (digits.length >= 6) {
+                      setCustomerCode('CXT' + digits.slice(-6));
+                    }
+                  }
+                }}
                 className="col-span-2 px-2.5 py-1 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-blue-700"
               />
             </div>

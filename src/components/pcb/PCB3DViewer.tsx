@@ -6,7 +6,6 @@ import { GerberAnalysisResult } from '../../lib/types';
 import { renderGerberStackup } from '../../lib/gerberParser';
 import { 
   RotateCw, 
-  Layers, 
   Box, 
   CheckCircle2, 
   AlertTriangle, 
@@ -54,10 +53,8 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
   const controlsRef = useRef<OrbitControls | null>(null);
   
   const pcbGroupRef = useRef<THREE.Group | null>(null);
-  const tracesGroupRef = useRef<THREE.Group | null>(null);
   
   const [isAutoRotating, setIsAutoRotating] = useState(true);
-  const [explodeFactor, setExplodeFactor] = useState(0);
   const [isWireframe, setIsWireframe] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -66,23 +63,38 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
   const [topTexture, setTopTexture] = useState<THREE.Texture | null>(null);
   const [bottomTexture, setBottomTexture] = useState<THREE.Texture | null>(null);
 
-  // Convert SVG string to Three.js Texture
-  const svgToTexture = (svgStr: string, wMm: number, hMm: number): Promise<THREE.Texture> => {
+  // Dynamic solder mask & plating color replacer for pcb-stackup SVG
+  const applySvgTheme = (svgStr: string, currentMaskColor: string, currentFinish: string): string => {
+    const maskInfo = PCB_CONFIG_DATA.MASK_COLORS[currentMaskColor as keyof typeof PCB_CONFIG_DATA.MASK_COLORS] || PCB_CONFIG_DATA.MASK_COLORS['Xanh lá'];
+    const finishInfo = PCB_CONFIG_DATA.FINISH_MATERIALS[currentFinish as keyof typeof PCB_CONFIG_DATA.FINISH_MATERIALS] || PCB_CONFIG_DATA.FINISH_MATERIALS['Mạ Vàng'];
+
+    // Solder mask color rule in pcb-stackup: .prefix_sm {color: #...;}
+    let modified = svgStr.replace(/(\.[a-zA-Z0-9_-]+_sm\s*\{\s*color:\s*)[^;}\s]+/gi, `$1${maskInfo.hex}`);
+    // Plating finish color rule in pcb-stackup: .prefix_cf {color: #...;}
+    modified = modified.replace(/(\.[a-zA-Z0-9_-]+_cf\s*\{\s*color:\s*)[^;}\s]+/gi, `$1${finishInfo.hex}`);
+    return modified;
+  };
+
+  // Convert SVG string to Three.js Texture with current color theme
+  const svgToTexture = (svgStr: string, wMm: number, hMm: number, currentMask: string, currentFinish: string): Promise<THREE.Texture> => {
     return new Promise((resolve) => {
+      const themedSvg = applySvgTheme(svgStr, currentMask, currentFinish);
+      const maskInfo = PCB_CONFIG_DATA.MASK_COLORS[currentMask as keyof typeof PCB_CONFIG_DATA.MASK_COLORS] || PCB_CONFIG_DATA.MASK_COLORS['Xanh lá'];
+
       const maxSide = 2048;
       const scale = maxSide / Math.max(wMm, hMm, 1);
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(2, Math.round(wMm * scale));
       canvas.height = Math.max(2, Math.round(hMm * scale));
 
-      const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+      const blob = new Blob([themedSvg], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const img = new Image();
 
       img.onload = () => {
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          ctx.fillStyle = '#2d3a24';
+          ctx.fillStyle = maskInfo.hex;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         }
@@ -102,14 +114,14 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     });
   };
 
-  // Convert incoming SVGs into textures
+  // Convert incoming SVGs into textures and re-render when maskColor or surfaceFinish changes
   useEffect(() => {
     let cancelled = false;
 
     if (topSvg && bottomSvg) {
       Promise.all([
-        svgToTexture(topSvg, widthMm, heightMm),
-        svgToTexture(bottomSvg, widthMm, heightMm),
+        svgToTexture(topSvg, widthMm, heightMm, maskColor, surfaceFinish),
+        svgToTexture(bottomSvg, widthMm, heightMm, maskColor, surfaceFinish),
       ]).then(([tTex, bTex]) => {
         if (!cancelled) {
           setTopTexture(tTex);
@@ -124,7 +136,7 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [topSvg, bottomSvg, widthMm, heightMm]);
+  }, [topSvg, bottomSvg, widthMm, heightMm, maskColor, surfaceFinish]);
 
   // Create procedural fallback texture if no Gerber SVG exists yet
   const createProceduralTexture = (isBottom = false): THREE.Texture => {
@@ -138,7 +150,7 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     ctx.fillStyle = maskInfo.hex;
     ctx.fillRect(0, 0, 1024, 1024);
 
-    // Grid hatch
+    // Subtle Grid hatch
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth = 2;
     for (let i = 40; i < 980; i += 60) {
@@ -212,7 +224,7 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     return texture;
   };
 
-  // Build the 3D PCB Mesh
+  // Build the 3D PCB Mesh as a single unified solid board
   const buildPCB = () => {
     if (!sceneRef.current) return;
     const scene = sceneRef.current;
@@ -224,10 +236,6 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
 
     const pcbGroup = new THREE.Group();
     pcbGroupRef.current = pcbGroup;
-
-    const tracesGroup = new THREE.Group();
-    tracesGroupRef.current = tracesGroup;
-    pcbGroup.add(tracesGroup);
 
     const maskInfo = PCB_CONFIG_DATA.MASK_COLORS[maskColor as keyof typeof PCB_CONFIG_DATA.MASK_COLORS] || PCB_CONFIG_DATA.MASK_COLORS['Xanh lá'];
     const finish = PCB_CONFIG_DATA.FINISH_MATERIALS[surfaceFinish as keyof typeof PCB_CONFIG_DATA.FINISH_MATERIALS] || PCB_CONFIG_DATA.FINISH_MATERIALS['Mạ Vàng'];
@@ -241,7 +249,7 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     // 1. FR-4 Core Substrate
     const coreGeo = new THREE.BoxGeometry(sx, sy, sz);
     const coreMat = new THREE.MeshStandardMaterial({
-      color: 0x4a5d23,
+      color: 0x2d3a24,
       roughness: 0.85,
       metalness: 0.05,
       wireframe: isWireframe,
@@ -255,32 +263,32 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     const topTex = topTexture || createProceduralTexture(false);
     const topGeo = new THREE.PlaneGeometry(sx, sy);
     const topMat = new THREE.MeshStandardMaterial({
-      color: topTexture ? 0xffffff : maskInfo.hex,
+      color: 0xffffff,
       map: topTex,
       roughness: maskInfo.roughness,
       metalness: maskInfo.metalness,
       wireframe: isWireframe,
     });
     const topMesh = new THREE.Mesh(topGeo, topMat);
-    topMesh.position.z = sz / 2 + 0.05;
+    topMesh.position.z = sz / 2 + 0.01;
     topMesh.receiveShadow = true;
-    tracesGroup.add(topMesh);
+    pcbGroup.add(topMesh);
 
     // 3. Bottom Solder Mask / Real Gerber Texture
     const botTex = bottomTexture || createProceduralTexture(true);
     const botGeo = new THREE.PlaneGeometry(sx, sy);
     const botMat = new THREE.MeshStandardMaterial({
-      color: bottomTexture ? 0xffffff : maskInfo.hex,
+      color: 0xffffff,
       map: botTex,
       roughness: maskInfo.roughness,
       metalness: maskInfo.metalness,
       wireframe: isWireframe,
     });
     const botMesh = new THREE.Mesh(botGeo, botMat);
-    botMesh.position.z = -sz / 2 - 0.05;
+    botMesh.position.z = -sz / 2 - 0.01;
     botMesh.rotation.y = Math.PI;
     botMesh.receiveShadow = true;
-    tracesGroup.add(botMesh);
+    pcbGroup.add(botMesh);
 
     // Only add sample components and mount holes if NOT showing real Gerber
     if (!topTexture) {
@@ -293,7 +301,7 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
         wireframe: isWireframe,
       });
       const icMesh = new THREE.Mesh(icGeo, icMat);
-      icMesh.position.z = sz / 2 + 0.28;
+      icMesh.position.z = sz / 2 + 0.25;
       icMesh.castShadow = true;
       pcbGroup.add(icMesh);
 
@@ -315,20 +323,20 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
       holeOffsets.forEach(([hx, hy]) => {
         const ringGeo = new THREE.RingGeometry(holeRadius * 0.5, holeRadius * 1.25, 24);
         const ringTop = new THREE.Mesh(ringGeo, padMat);
-        ringTop.position.set(hx, hy, sz / 2 + 0.06);
-        tracesGroup.add(ringTop);
+        ringTop.position.set(hx, hy, sz / 2 + 0.02);
+        pcbGroup.add(ringTop);
 
         const ringBot = new THREE.Mesh(ringGeo, padMat);
-        ringBot.position.set(hx, hy, -sz / 2 - 0.06);
+        ringBot.position.set(hx, hy, -sz / 2 - 0.02);
         ringBot.rotation.y = Math.PI;
-        tracesGroup.add(ringBot);
+        pcbGroup.add(ringBot);
       });
     }
 
     scene.add(pcbGroup);
   };
 
-  // Initialize Three.js
+  // Initialize Three.js Scene
   useEffect(() => {
     if (!containerRef.current) return;
     const container = containerRef.current;
@@ -345,8 +353,8 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
 
     const renderer = new THREE.WebGLRenderer({ 
       antialias: true, 
-      alpha: true, 
-      preserveDrawingBuffer: true 
+      alpha: true,
+      powerPreference: 'high-performance'
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -424,12 +432,6 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
     buildPCB();
   }, [maskColor, surfaceFinish, thickness, widthMm, heightMm, isWireframe, topTexture, bottomTexture]);
 
-  // Explode effect
-  useEffect(() => {
-    if (!tracesGroupRef.current) return;
-    tracesGroupRef.current.position.z = explodeFactor * 9;
-  }, [explodeFactor]);
-
   // View angle controls
   const setCameraView = (view: 'top' | 'bottom' | 'iso') => {
     if (!cameraRef.current || !controlsRef.current) return;
@@ -471,7 +473,10 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
       }
 
       if (onAnalysisComplete) {
-        onAnalysisComplete(result);
+        onAnalysisComplete({
+          ...result,
+          rawGerberFile: file,
+        });
       }
     } catch (e: any) {
       alert('Lỗi phân tích Gerber: ' + e.message);
@@ -538,7 +543,6 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
             onClick={() => {
               setCameraView('iso');
               setIsAutoRotating(true);
-              setExplodeFactor(0);
             }}
             className="p-1.5 rounded text-xs text-slate-400 hover:text-slate-200 transition"
             title="Đặt lại góc nhìn mặc định"
@@ -584,20 +588,10 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
 
       {/* 3. BOTTOM CONTROLS & GERBER DROP BUTTON */}
       <div className="p-3 bg-slate-900/95 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shrink-0">
-        {/* Explode layer slider */}
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
-          <Layers className="w-4 h-4 text-sky-400 shrink-0" />
-          <span className="text-slate-300 shrink-0 font-medium">Tách lớp 3D:</span>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={explodeFactor}
-            onChange={(e) => setExplodeFactor(parseFloat(e.target.value))}
-            className="w-28 sm:w-36 accent-sky-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
-          />
-          <span className="font-mono text-sky-400 w-9">{Math.round(explodeFactor * 100)}%</span>
+        <div className="flex items-center gap-2.5 text-slate-300">
+          <Sparkles className="w-4 h-4 text-sky-400 shrink-0" />
+          <span className="text-sky-300 font-semibold">Mô hình 3D WebGL:</span>
+          <span className="text-slate-400">Tự động đồng bộ màu sơn {maskColor} & kiểu mạ {surfaceFinish}</span>
         </div>
 
         {/* Status Indicator */}
@@ -625,7 +619,7 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
         </div>
       </div>
 
-      {/* 4. GERBER AUTO-MEASURE & ANALYSIS RESULT BANNER */}
+      {/* 4. GERBER AUTO-MEASURE & ANALYSIS RESULT BANNER (KHÔNG DỰ ĐOÁN SỐ LỚP) */}
       {gerberAnalysis && (
         <div className="px-4 py-2 bg-slate-900 border-t border-slate-800 text-xs shrink-0">
           {gerberAnalysis.success ? (
@@ -633,7 +627,7 @@ export const PCB3DViewer: React.FC<PCB3DViewerProps> = ({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 text-emerald-400 font-semibold font-mono">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>ĐÃ XEM 3D & PHÂN TÍCH: {gerberAnalysis.fileName} ({gerberAnalysis.layerCount} lớp)</span>
+                  <span>ĐÃ XEM 3D GERBER: {gerberAnalysis.fileName}</span>
                 </div>
                 
                 {gerberAnalysis.boardWidthMm && gerberAnalysis.boardHeightMm && (

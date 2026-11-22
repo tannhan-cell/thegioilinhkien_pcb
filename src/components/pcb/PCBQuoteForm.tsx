@@ -234,9 +234,9 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
     const updatedFiles = [...curFiles, ...newFiles];
     updateCurrentSpecField({ files: updatedFiles });
 
-    // If it's a Gerber ZIP file in PCB mode: Auto extract dimensions & build 3D Gerber!
+    // If it's a Gerber ZIP file (in PCB or Assembly mode): Auto extract dimensions & build 3D Gerber!
     const zipFile = Array.from(fileList).find(f => f.name.toLowerCase().endsWith('.zip'));
-    if (isPCB && zipFile) {
+    if (zipFile) {
       setParsingNotice('Đang phân tích lớp Gerber và dựng mô hình 3D...');
       try {
         const maskInfo = PCB_CONFIG_DATA.MASK_COLORS[activeSpec.maskColor as keyof typeof PCB_CONFIG_DATA.MASK_COLORS] || PCB_CONFIG_DATA.MASK_COLORS['Xanh lá'];

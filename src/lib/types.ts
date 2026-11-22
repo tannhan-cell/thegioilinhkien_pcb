@@ -195,6 +195,9 @@ export interface GerberAnalysisResult {
   layerCount?: number;
   boardWidthMm?: number;
   boardHeightMm?: number;
+  topSvg?: string | null;
+  bottomSvg?: string | null;
+  rawGerberFile?: File | null;
 }
 
 export interface PCBRequest {

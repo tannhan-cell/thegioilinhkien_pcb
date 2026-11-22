@@ -119,6 +119,11 @@ export const db = {
   },
 
   async saveCategory(cat: Category): Promise<Category> {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('categories').upsert(cat);
+      } catch (e) {}
+    }
     const categories = await this.getCategories();
     const index = categories.findIndex(c => c.id === cat.id);
     if (index >= 0) {
@@ -131,6 +136,11 @@ export const db = {
   },
 
   async deleteCategory(id: string): Promise<void> {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('categories').delete().eq('id', id);
+      } catch (e) {}
+    }
     const categories = await this.getCategories();
     const filtered = categories.filter(c => c.id !== id);
     setLocal(STORAGE_KEYS.CATEGORIES, filtered);

@@ -82,6 +82,16 @@ export const AdminProductsPage: React.FC = () => {
     setShowAddCatInline(false);
   };
 
+  const handleDeleteCategory = async (id: string, catName: string) => {
+    if (window.confirm(`Bạn có chắc chắn muốn xóa danh mục "${catName}" không?`)) {
+      await db.deleteCategory(id);
+      await fetchAll();
+      if (category === catName) {
+        setCategory(categories.find(c => c.id !== id)?.name || '');
+      }
+    }
+  };
+
   const openNewModal = () => {
     setSelectedProduct(null);
     setName('');
@@ -242,9 +252,17 @@ export const AdminProductsPage: React.FC = () => {
           {categories.map((c) => (
             <span
               key={c.id}
-              className="px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-700 font-medium"
+              className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 rounded-lg text-xs text-slate-700 font-medium transition group"
             >
-              {c.name}
+              <span>{c.name}</span>
+              <button
+                type="button"
+                onClick={() => handleDeleteCategory(c.id, c.name)}
+                className="p-0.5 text-slate-400 hover:text-red-600 rounded transition"
+                title={`Xóa danh mục "${c.name}"`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             </span>
           ))}
         </div>

@@ -405,7 +405,8 @@ export async function renderGerberStackup(
       boardHeightMm: realH > 0 ? realH : baseAnalysis.boardHeightMm,
       topSvg: stackup.top.svg,
       bottomSvg: stackup.bottom?.svg,
-      message: `Đã dựng hình 3D thực tế từ Gerber: ${realW} x ${realH} mm (${gerberLayers.length} lớp)`
+      rawGerberFile: file,
+      message: `Đã dựng hình 3D thực tế từ Gerber: ${realW} x ${realH} mm`
     };
   } catch (err) {
     console.warn('pcbStackup rendering fallback to base coordinate parser:', err);

@@ -38,6 +38,9 @@ export interface SystemSettings {
   freeShippingThreshold: number;
   announcementText?: string;
   showAnnouncement?: boolean;
+  announcementSpeed?: number; // seconds
+  announcementBgColor?: string;
+  announcementTextColor?: string;
   
   // Telegram Bot Notifications
   telegramBotToken?: string;

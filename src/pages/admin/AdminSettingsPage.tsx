@@ -285,44 +285,118 @@ export const AdminSettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* 4. Shipping & Announcement Card */}
+        {/* 4. Marquee Running Announcement & Shipping Card */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 space-y-4">
-          <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-            <Truck className="w-4 h-4 text-purple-600" />
-            4. Phí Vận Chuyển & Banner Khuyến Mãi
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div>
-              <label className="block text-slate-700 font-semibold mb-1">Phí ship mặc định (VNĐ):</label>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <Truck className="w-4 h-4 text-purple-600" />
+              4. Cài Đặt Thông Báo Chạy Chữ Đầu Trang & Phí Ship
+            </h3>
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
               <input
-                type="number"
-                min="0"
-                value={settings.defaultShippingFee}
-                onChange={(e) => handleChange('defaultShippingFee', Number(e.target.value))}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono"
+                type="checkbox"
+                checked={settings.showAnnouncement ?? true}
+                onChange={(e) => handleChange('showAnnouncement', e.target.checked)}
+                className="rounded text-purple-600 focus:ring-purple-500"
               />
-            </div>
+              <span>Bật thông báo chạy chữ</span>
+            </label>
+          </div>
 
+          <div className="space-y-4 text-xs">
+            {/* Announcement Text */}
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">Ngưỡng đơn miễn phí vận chuyển (Freeship):</label>
-              <input
-                type="number"
-                min="0"
-                value={settings.freeShippingThreshold}
-                onChange={(e) => handleChange('freeShippingThreshold', Number(e.target.value))}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-emerald-600"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-slate-700 font-semibold mb-1">Chữ thông báo chạy trên Header:</label>
-              <input
-                type="text"
+              <label className="block text-slate-700 font-semibold mb-1">
+                Nội dung thông báo chạy chữ (Marquee Banner):
+              </label>
+              <textarea
+                rows={2}
                 value={settings.announcementText || ''}
                 onChange={(e) => handleChange('announcementText', e.target.value)}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                placeholder="VD: 📢 QUÝ KHÁCH CÓ VẤN ĐỀ CẦN HỖ TRỢ VUI LÒNG LIÊN HỆ ADMIN: BÊN MÌNH NHẬN GIA CÔNG MẠCH IN & HÀN LINH KIỆN..."
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500"
               />
+            </div>
+
+            {/* Color & Speed */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Màu nền thanh thông báo:
+                </label>
+                <select
+                  value={settings.announcementBgColor || '#5b21b6'}
+                  onChange={(e) => handleChange('announcementBgColor', e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-medium"
+                >
+                  <option value="#5b21b6">Tím Đậm Hoàng Gia (#5b21b6)</option>
+                  <option value="#0284c7">Xanh Dương Tươi Sáng (#0284c7)</option>
+                  <option value="#004d26">Xanh Lá Công Nghiệp (#004d26)</option>
+                  <option value="#b91c1c">Đỏ Nổi Bật (#b91c1c)</option>
+                  <option value="#0f172a">Đen Xám Tối Giản (#0f172a)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Tốc độ chạy chữ (giây/vòng - càng nhỏ càng chạy nhanh):
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="10"
+                    max="45"
+                    step="1"
+                    value={settings.announcementSpeed || 22}
+                    onChange={(e) => handleChange('announcementSpeed', Number(e.target.value))}
+                    className="flex-1 accent-purple-600 cursor-pointer"
+                  />
+                  <span className="font-mono font-bold text-slate-800 w-12 text-center">
+                    {settings.announcementSpeed || 22}s
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Live Preview Box */}
+            <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                Xem Trước (Live Preview):
+              </span>
+              <div 
+                style={{ backgroundColor: settings.announcementBgColor || '#5b21b6' }}
+                className="py-1.5 px-3 rounded text-white text-xs font-semibold overflow-hidden whitespace-nowrap shadow-xs"
+              >
+                <div className="flex items-center gap-2 animate-pulse">
+                  <span>📢</span>
+                  <span>{settings.announcementText || 'QUÝ KHÁCH CÓ VẤN ĐỀ CẦN HỖ TRỢ VUI LÒNG LIÊN HỆ ADMIN...'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Shipping Fees */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Phí ship mặc định (VNĐ):</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={settings.defaultShippingFee}
+                  onChange={(e) => handleChange('defaultShippingFee', Number(e.target.value))}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Ngưỡng đơn miễn phí ship (Freeship):</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={settings.freeShippingThreshold}
+                  onChange={(e) => handleChange('freeShippingThreshold', Number(e.target.value))}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-emerald-600"
+                />
+              </div>
             </div>
           </div>
         </div>

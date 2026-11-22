@@ -37,7 +37,7 @@ export const PCBServicesPage: React.FC = () => {
             className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold rounded-2xl shadow-xl shadow-blue-500/25 transition flex items-center gap-2 text-sm sm:text-base font-display"
           >
             <Sparkles className="w-4 h-4 text-amber-300" />
-            <span>MỞ CÔNG CỤ TÍNH GIÁ & SOI 3D</span>
+            <span>MỞ CÔNG CỤ TÍNH GIÁ & XEM 3D</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>

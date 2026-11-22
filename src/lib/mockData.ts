@@ -12,17 +12,25 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   bankOwner: 'VO TAN NHAN',
   defaultShippingFee: 30000,
   freeShippingThreshold: 500000,
-  announcementText: '🔥 Khuyến mãi gia công PCB: Đặt mạch 2 lớp chỉ từ 150.000đ - Miễn phí kiểm tra Gerber DFM!',
+  announcementText: 'QUÝ KHÁCH CÓ VẤN ĐỀ CẦN HỖ TRỢ VUI LÒNG LIÊN HỆ ADMIN: BÊN MÌNH NHẬN GIA CÔNG MẠCH IN & HÀN LINH KIỆN TỪ SỐ LƯỢNG NHỎ ĐẾN LỚN!',
   showAnnouncement: true,
+  announcementSpeed: 22,
+  announcementBgColor: '#0284c7', // Bright blue or purple
+  announcementTextColor: '#ffffff',
 };
 
 export const INITIAL_CATEGORIES: Category[] = [
-  { id: 'cat-1', name: 'Vi điều khiển & Mạch nạp', slug: 'vi-dieu-khien', description: 'STM32, ESP32, Arduino, ESP8266, PIC và phụ kiện mạch nạp', icon: 'fa-microchip', productCount: 4 },
-  { id: 'cat-2', name: 'Cảm biến (Sensors)', slug: 'cam-bien', description: 'Cảm biến nhiệt độ, gia tốc, khoảng cách, quang, khí gas', icon: 'fa-satellite-dish', productCount: 3 },
-  { id: 'cat-3', name: 'Nguồn & Biến đổi áp', slug: 'nguon-ha-ap', description: 'Mạch hạ áp LM2596, XL4015, buck boost, pin sạc 18650', icon: 'fa-bolt', productCount: 2 },
-  { id: 'cat-4', name: 'Linh kiện dán SMD', slug: 'linh-kien-smd', description: 'Điện trở, tụ điện, transistor, diode, led dán cuộn SMD', icon: 'fa-boxes-stacked', productCount: 2 },
-  { id: 'cat-5', name: 'Đầu nối & Jack cắm', slug: 'dau-noi-connector', description: 'Header chân cắm, USB Type-C, Jack DC, Domino Terminal', icon: 'fa-plug', productCount: 2 },
-  { id: 'cat-6', name: 'Dịch vụ Gia công PCB', slug: 'dich-vu-pcb', description: 'Gia công mạch in 1-32 lớp, SMT Stencil, Hàn cắm linh kiện', icon: 'fa-layer-group', productCount: 1 },
+  { id: 'cat-1', name: 'RASPBERRY PI', slug: 'raspberry-pi', description: 'Bo mạch máy tính nhúng Raspberry Pi 4, Pi 5, phụ kiện case, quạt tản nhiệt', icon: 'fa-cube', productCount: 3 },
+  { id: 'cat-2', name: 'ARDUINO', slug: 'arduino', description: 'Arduino Uno R3, Mega 2560, Nano, Pro Mini và phụ kiện shield', icon: 'fa-microchip', productCount: 4 },
+  { id: 'cat-3', name: 'MÀN HÌNH LCD', slug: 'man-hinh-lcd', description: 'Màn hình LCD 1602, OLED 0.96, TFT cảm ứng SPI/I2C', icon: 'fa-tv', productCount: 2 },
+  { id: 'cat-4', name: 'CNC & PRINTER 3D', slug: 'cnc-printer-3d', description: 'Driver động cơ bước A4988, DRV8825, ray trượt, đai GT2', icon: 'fa-gears', productCount: 2 },
+  { id: 'cat-5', name: 'MẠCH NẠP & KÍT PHÁT TRIỂN', slug: 'mach-nap-kit', description: 'STM32, ESP32, ST-Link V2, J-Link, USB-UART CH340/CP2102', icon: 'fa-laptop-code', productCount: 5 },
+  { id: 'cat-6', name: 'MODULE CẢM BIẾN', slug: 'module-cam-bien', description: 'Cảm biến nhiệt độ, khoảng cách, hồng ngoại, quang trở, gas', icon: 'fa-satellite-dish', productCount: 4 },
+  { id: 'cat-7', name: 'IC & VI ĐIỀU KHIỂN', slug: 'ic-vi-dieu-khien', description: 'IC nguồn, Op-Amp, Logic TTL/CMOS, Vi điều khiển dán/cắm', icon: 'fa-microchip', productCount: 4 },
+  { id: 'cat-8', name: 'NGUỒN & PIN', slug: 'nguon-pin', description: 'Nguồn xung 5V/12V/24V, module hạ áp LM2596, pin sạc 18650', icon: 'fa-bolt', productCount: 3 },
+  { id: 'cat-9', name: 'LINH KIỆN THỤ ĐỘNG & SMD', slug: 'linh-kien-smd', description: 'Điện trở cuộn, tụ gốm, cuộn cảm, diode, LED 0805, 0603', icon: 'fa-boxes-stacked', productCount: 3 },
+  { id: 'cat-10', name: 'GIA CÔNG MẠCH IN (PCB)', slug: 'gia-cong-pcb', description: 'Gia công bo mạch in FR-4 chất lượng cao 1-32 lớp, xem 3D Gerber', icon: 'fa-layer-group', productCount: 1 },
+  { id: 'cat-11', name: 'GIA CÔNG HÀN LẮP (PCBA)', slug: 'gia-cong-pcba', description: 'Hàn dán SMT tự động, hàn cắm DIP, cắt Stencil laser', icon: 'fa-screwdriver-wrench', productCount: 1 },
 ];
 
 export const INITIAL_PRODUCTS: Product[] = [

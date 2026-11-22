@@ -98,8 +98,8 @@ export const PCB_CONFIG_DATA = {
 /**
  * Thuật toán ước tính chi phí gia công PCB tham khảo
  * Chuẩn giá thị trường: <=10x10cm, 2 lớp, thông số tiêu chuẩn:
- * - Đường bộ: 5 bo ~150.000đ | 10 bo ~210.000đ
- * - Đường bay: 5 bo ~400.000đ | 10 bo ~490.000đ
+ * - Đường bộ: 5 mạch = 149.000đ | 10 mạch = 199.000đ
+ * - Đường bay: 5 mạch = 349.000đ | 10 mạch = 399.000đ
  */
 export function estimatePCBPrice(spec: Partial<PCBSpec>): number | null {
   if (spec.serviceType === 'assembly') return null;
@@ -108,8 +108,11 @@ export function estimatePCBPrice(spec: Partial<PCBSpec>): number | null {
   const w = Number(spec.width) || 100;
   const h = Number(spec.height) || 100;
 
-  const fixed = isAir ? 310000 : 90000;
-  const perBoard = isAir ? 18000 : 12000;
+  // Chuẩn hóa theo bảng giá: 
+  // Đường bộ: 5 mạch = 149.000đ, 10 mạch = 199.000đ -> fixed = 99.000, perBoard = 10.000
+  // Đường bay: 5 mạch = 349.000đ, 10 mạch = 399.000đ -> fixed = 299.000, perBoard = 10.000
+  const fixed = isAir ? 299000 : 99000;
+  const perBoard = 10000;
   const areaFactor = Math.max(1, (w * h) / 10000);
 
   const pick = <T extends Record<string, number>>(table: T, key?: string, fallback: number | null = 1): number | null => {
@@ -117,7 +120,7 @@ export function estimatePCBPrice(spec: Partial<PCBSpec>): number | null {
     return key in table ? table[key] : fallback;
   };
 
-  const layers = pick({ '1 Lớp': 0.9, '2 Lớp': 1, '4 Lớp': 2.2, '6 Lớp': 3.5 }, spec.layers, null);
+  const layers = pick({ '1 Lớp': 0.95, '2 Lớp': 1, '4 Lớp': 2.2, '6 Lớp': 3.5 }, spec.layers, null);
   const material = pick({ 'FR-4': 1, 'CEM-1': 0.9, 'FR-1': 0.9, '94HB': 0.9, '99V0': 1, 'Alu (Nhôm)': 1.6, 'FPC (Dẻo)': 2.5 }, spec.material, null);
   const thickness = pick({ '0.4mm': 1.15, '0.6mm': 1.15, '0.8mm': 1, '1.0mm': 1, '1.2mm': 1, '1.6mm': 1, '2.0mm': 1.15, '2.5mm': 1.3, '3.0mm': 1.3 }, spec.thickness, null);
   const copper = pick({ '0.5oz': 1, '1.0oz': 1, '1.5oz': 1.25, '2.0oz': 1.5 }, spec.copperWeight, null);

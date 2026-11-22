@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { PCB_CONFIG_DATA } from '../../lib/pricing';
+import { db } from '../../lib/db';
+import { SystemSettings, Category } from '../../lib/types';
 import { 
   Cpu, 
   ShoppingCart, 
@@ -9,14 +11,13 @@ import {
   Menu, 
   X, 
   PhoneCall, 
-  MessageCircle,
-  FileSearch,
-  ExternalLink,
+  User,
+  ChevronDown,
   Layers,
   Wrench,
-  Sparkles,
-  Info,
-  ShieldCheck
+  Eye,
+  FileSearch,
+  Sparkles
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -28,8 +29,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLookup }) => {
   const navigate = useNavigate();
   const { itemCount, setIsCartOpen } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showBanner, setShowBanner] = useState(true);
+  const [bannerVisible, setBannerVisible] = useState(true);
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    db.getSettings().then(setSettings);
+    db.getCategories().then(setCategories);
+  }, []);
 
   const queryParams = new URLSearchParams(location.search);
   const serviceQuery = queryParams.get('service');
@@ -44,21 +53,40 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLookup }) => {
     }
   };
 
+  const handleKeywordClick = (kw: string) => {
+    setSearchQuery(kw);
+    navigate(`/products?search=${encodeURIComponent(kw)}`);
+  };
+
+  const announcementText = settings?.announcementText || 'QUÝ KHÁCH CÓ VẤN ĐỀ CẦN HỖ TRỢ VUI LÒNG LIÊN HỆ ADMIN: BÊN MÌNH NHẬN GIA CÔNG MẠCH IN & HÀN LINH KIỆN TỪ SỐ LƯỢNG NHỎ ĐẾN LỚN!';
+  const showAnnouncement = settings?.showAnnouncement ?? true;
+  const announcementBgColor = settings?.announcementBgColor || '#0284c7';
+  const marqueeSpeed = `${settings?.announcementSpeed || 22}s`;
+
   return (
-    <header className="sticky top-0 z-40 w-full shadow-md">
-      {/* 1. TOP PURPLE NOTIFICATION BANNER (Y HỆT ẢNH 3) */}
-      {showBanner && (
-        <div className="bg-[#5b21b6] text-white text-[12px] sm:text-[13px] font-medium py-1.5 px-4 flex items-center justify-between border-b border-purple-800">
-          <div className="max-w-7xl mx-auto flex-1 flex items-center justify-center gap-2 text-center truncate">
-            <span>📢</span>
-            <span className="font-semibold uppercase tracking-wide">
-              QUÝ KHÁCH CÓ VẤN ĐỀ CẦN HỖ TRỢ VUI LÒNG LIÊN HỆ ADMIN: BÊN MÌNH NHẬN GIA CÔNG MẠCH IN & HÀN LINH KIỆN TỪ SỐ LƯỢNG NHỎ ĐẾN LỚN!
-            </span>
+    <header className="sticky top-0 z-40 w-full shadow-md font-sans">
+      {/* 1. TOP MARQUEE RUNNING ANNOUNCEMENT BANNER (Y HỆT ẢNH 4, CÓ THỂ SỬA TRONG ADMIN) */}
+      {showAnnouncement && bannerVisible && (
+        <div 
+          style={{ backgroundColor: announcementBgColor }}
+          className="text-white text-[12px] sm:text-[13px] font-medium py-1.5 px-3 flex items-center justify-between border-b border-black/10 select-none overflow-hidden"
+        >
+          <div className="flex-1 overflow-hidden relative mx-2">
+            <div 
+              style={{ '--marquee-speed': marqueeSpeed } as React.CSSProperties}
+              className="animate-marquee inline-block font-semibold uppercase tracking-wide cursor-default"
+            >
+              <span className="mr-3">📢</span>
+              <span>{announcementText}</span>
+              <span className="mx-8">•</span>
+              <span className="mr-3">📢</span>
+              <span>{announcementText}</span>
+            </div>
           </div>
           <button
             type="button"
-            onClick={() => setShowBanner(false)}
-            className="p-1 hover:bg-purple-800 rounded transition text-purple-200 hover:text-white shrink-0 ml-2"
+            onClick={() => setBannerVisible(false)}
+            className="p-1 hover:bg-black/20 rounded-md transition text-white/80 hover:text-white shrink-0 ml-2"
             title="Đóng thông báo"
           >
             <X className="w-4 h-4" />
@@ -66,142 +94,225 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLookup }) => {
         </div>
       )}
 
-      {/* 2. MAIN HEADER BAR (Dark Industrial Cyber Tech as in Image 3) */}
-      <div className="bg-[#0b101b] text-white border-b border-slate-800 py-2.5 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          {/* Logo & Slogan */}
-          <Link to="/" className="flex items-center gap-3 shrink-0 group">
-            <div className="w-10 h-10 rounded-xl bg-[#00f5d4] text-slate-950 flex items-center justify-center shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
+      {/* 2. WHITE TOP HEADER BAR (TONE TRẮNG XANH DƯƠNG THEO ẢNH ICDAYROI) */}
+      <div className="bg-white border-b border-slate-200 py-3 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 sm:gap-8">
+          {/* Logo Brand Styled Like ICDAYROI */}
+          <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-blue-500 text-white flex items-center justify-center shadow-md shadow-sky-500/20 group-hover:scale-105 transition-transform">
               <Cpu className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-lg tracking-wider text-white font-mono uppercase">
-                  PCB QUOTE HUB
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-lg sm:text-xl tracking-tight text-blue-700 font-display">
+                  THẾ GIỚI LINH KIỆN
                 </span>
-                <span className="px-1.5 py-0.5 rounded bg-cyan-950 text-[#00f5d4] border border-cyan-500/40 text-[10px] font-mono font-bold tracking-widest">
-                  3D FAB LAB
+                <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 text-[10px] font-bold tracking-wider uppercase">
+                  & PCB
                 </span>
               </div>
-              <div className="text-[11px] text-slate-400 font-normal">
-                Hệ thống đặt gia công & báo giá bo mạch in tự động
+              <div className="text-[11px] text-slate-500 -mt-0.5 font-medium">
+                Thế giới điện tử & Bo mạch in 3D
               </div>
             </div>
           </Link>
 
-          {/* Search Box on Desktop */}
-          <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center relative flex-1 max-w-sm mx-4">
-            <input
-              type="text"
-              placeholder="Tìm kiếm nhanh chóng với 1 thông số..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-3.5 pr-9 py-1.5 bg-slate-900 border border-slate-700 text-xs text-white rounded-lg focus:outline-none focus:border-cyan-400 font-sans"
-            />
-            <button type="submit" className="absolute right-2.5 text-slate-400 hover:text-cyan-400">
-              <Search className="w-4 h-4" />
-            </button>
-          </form>
+          {/* Search Box in Center */}
+          <div className="hidden md:flex flex-col flex-1 max-w-xl">
+            <form onSubmit={handleSearchSubmit} className="flex items-center w-full">
+              <input
+                type="text"
+                placeholder="Nhập từ khóa cần tìm (Arduino, STM32, ESP32, linh kiện, PCB...)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-50 border border-r-0 border-slate-300 rounded-l-lg text-xs text-slate-800 focus:outline-none focus:border-sky-500 focus:bg-white transition"
+              />
+              <button
+                type="submit"
+                className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-r-lg transition flex items-center gap-1.5 shrink-0 shadow-sm"
+              >
+                <Search className="w-4 h-4" />
+                <span>Tìm kiếm</span>
+              </button>
+            </form>
+            {/* Quick keyword hints */}
+            <div className="flex items-center gap-2 text-[11px] text-slate-400 pt-1 truncate">
+              <span className="text-slate-500">Gợi ý:</span>
+              {['Arduino', 'STM32', 'ESP32', 'Module', 'Cảm biến', 'Nguồn', 'Gia công PCB'].map((kw) => (
+                <button
+                  key={kw}
+                  type="button"
+                  onClick={() => handleKeywordClick(kw)}
+                  className="hover:text-sky-600 hover:underline transition"
+                >
+                  {kw}
+                </button>
+              ))}
+            </div>
+          </div>
 
-          {/* Quick Contact & Action Buttons */}
-          <div className="flex items-center gap-2 text-xs font-medium">
-            <a
-              href={PCB_CONFIG_DATA.CONTACT.zaloUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg transition"
-            >
-              <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Zalo {PCB_CONFIG_DATA.CONTACT.hotlineDisplay}</span>
-            </a>
-
-            <a
-              href={PCB_CONFIG_DATA.CONTACT.facebook}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg transition"
-            >
-              <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
-              <span>Facebook</span>
-            </a>
-
+          {/* Right: Login & Cart Actions */}
+          <div className="flex items-center gap-3 sm:gap-5 text-xs">
+            {/* Order Lookup shortcut */}
             <button
               type="button"
               onClick={onOpenLookup}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-cyan-950 text-cyan-300 border border-cyan-500/40 rounded-lg transition"
+              className="hidden lg:flex items-center gap-1.5 text-slate-600 hover:text-sky-600 font-medium transition"
             >
-              <FileSearch className="w-3.5 h-3.5 text-cyan-400" />
+              <FileSearch className="w-4 h-4 text-sky-600" />
               <span>Tra cứu đơn</span>
             </button>
+
+            {/* Admin / Account Portal */}
+            <Link
+              to="/admin270906"
+              className="flex items-center gap-1.5 text-slate-700 hover:text-sky-600 font-medium transition group"
+            >
+              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-sky-50 transition">
+                <User className="w-4 h-4 text-slate-600 group-hover:text-sky-600" />
+              </div>
+              <div className="hidden sm:block text-left">
+                <div className="text-[10px] text-slate-400">Tài khoản</div>
+                <div className="font-bold -mt-0.5">Quản trị</div>
+              </div>
+            </Link>
 
             {/* Shopping Cart Button */}
             <button
               type="button"
               onClick={() => setIsCartOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#004d26] hover:bg-[#00381c] text-white rounded-lg transition font-semibold"
+              className="flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-100 hover:bg-sky-50 text-slate-800 rounded-lg border border-slate-200 transition"
             >
-              <ShoppingCart className="w-3.5 h-3.5" />
-              <span>({itemCount}) MỤC</span>
+              <div className="relative">
+                <ShoppingCart className="w-5 h-5 text-sky-600" />
+                {itemCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 w-4 h-4 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center">
+                    {itemCount}
+                  </span>
+                )}
+              </div>
+              <span className="hidden sm:inline font-bold">Giỏ hàng ({itemCount})</span>
             </button>
 
-            {/* Mobile Menu Toggle */}
+            {/* Mobile Menu Toggle Button */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-lg"
+              className="md:hidden p-2 text-slate-600 hover:text-sky-600 rounded-lg"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </div>
       </div>
 
-      {/* 3. WHITE NAVIGATION BAR WITH ORANGE TAB HIGHLIGHT (Y HỆT ẢNH 1 & ẢNH 2) */}
-      <div className="bg-white border-b border-slate-200">
+      {/* 3. PRIMARY BLUE MAIN NAVIGATION BAR (TONE XANH DƯƠNG ĐẶC TRƯNG NHƯ ICDAYROI) */}
+      <div className="bg-[#007bff] text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-11 text-xs font-bold uppercase tracking-wider">
-            <nav className="flex items-center gap-1 h-full">
+            {/* Left: Category Dropdown Button */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+                className="flex items-center gap-2.5 px-4 h-11 bg-blue-800 hover:bg-blue-900 text-white transition select-none shadow-inner"
+              >
+                <Menu className="w-4 h-4" />
+                <span>DANH MỤC SẢN PHẨM</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${categoryDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Dropdown Menu on Click */}
+              {categoryDropdownOpen && (
+                <div 
+                  className="absolute top-full left-0 w-64 bg-white text-slate-800 border border-slate-200 shadow-2xl rounded-b-lg py-2 z-50 animate-fade-in"
+                  onMouseLeave={() => setCategoryDropdownOpen(false)}
+                >
+                  {categories.map((cat) => (
+                    <Link
+                      key={cat.id}
+                      to={`/products?category=${cat.slug}`}
+                      onClick={() => setCategoryDropdownOpen(false)}
+                      className="flex items-center justify-between px-4 py-2 hover:bg-sky-50 hover:text-sky-700 text-xs font-semibold transition"
+                    >
+                      <span>{cat.name}</span>
+                      <span className="text-[10px] text-slate-400">›</span>
+                    </Link>
+                  ))}
+                  <div className="border-t border-slate-100 my-1" />
+                  <Link
+                    to="/pcb-quote?service=pcb"
+                    onClick={() => setCategoryDropdownOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2 text-sky-700 hover:bg-sky-50 text-xs font-bold"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Gia Công Mạch In (PCB)</span>
+                  </Link>
+                  <Link
+                    to="/pcb-quote?service=assembly"
+                    onClick={() => setCategoryDropdownOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2 text-orange-600 hover:bg-orange-50 text-xs font-bold"
+                  >
+                    <Wrench className="w-3.5 h-3.5" />
+                    <span>Gia Công Hàn Lắp (PCBA)</span>
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Middle Nav Items */}
+            <nav className="hidden md:flex items-center h-full">
               <Link
-                to="/products"
-                className={`px-4 h-full flex items-center transition ${
-                  location.pathname === '/products'
-                    ? 'bg-[#f37021] text-white shadow-sm'
-                    : 'text-slate-700 hover:text-[#f37021] hover:bg-slate-50'
+                to="/"
+                className={`px-3.5 h-full flex items-center transition ${
+                  location.pathname === '/' ? 'bg-blue-800 text-white' : 'hover:bg-blue-700/80 text-white/95'
                 }`}
               >
-                LINH KIỆN ĐIỆN TỬ
+                TRANG CHỦ
               </Link>
 
-              {/* GIA CÔNG MẠCH IN (PCB) */}
+              <Link
+                to="/products"
+                className={`px-3.5 h-full flex items-center transition ${
+                  location.pathname === '/products' ? 'bg-blue-800 text-white' : 'hover:bg-blue-700/80 text-white/95'
+                }`}
+              >
+                SẢN PHẨM
+              </Link>
+
+              {/* GIA CÔNG MẠCH IN */}
               <Link
                 to="/pcb-quote?service=pcb"
-                className={`px-4 h-full flex items-center transition ${
-                  isPCBActive
-                    ? 'bg-[#f37021] text-white shadow-sm'
-                    : 'text-slate-700 hover:text-[#f37021] hover:bg-slate-50'
+                className={`px-3.5 h-full flex items-center transition ${
+                  isPCBActive ? 'bg-blue-800 text-white' : 'hover:bg-blue-700/80 text-white/95'
                 }`}
               >
                 GIA CÔNG MẠCH IN
               </Link>
 
-              {/* GIA CÔNG HÀN LẮP (PCBA) */}
+              {/* GIA CÔNG HÀN LẮP */}
               <Link
                 to="/pcb-quote?service=assembly"
-                className={`px-4 h-full flex items-center transition ${
-                  isAssemblyActive
-                    ? 'bg-[#f37021] text-white shadow-sm'
-                    : 'text-slate-700 hover:text-[#f37021] hover:bg-slate-50'
+                className={`px-3.5 h-full flex items-center transition ${
+                  isAssemblyActive ? 'bg-blue-800 text-white' : 'hover:bg-blue-700/80 text-white/95'
                 }`}
               >
                 GIA CÔNG HÀN LẮP
               </Link>
 
+              {/* XEM 3D GERBER */}
+              <Link
+                to="/pcb-quote#viewer3d"
+                className="px-3.5 h-full flex items-center gap-1.5 hover:bg-blue-700/80 text-yellow-300 font-bold transition"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>XEM 3D GERBER</span>
+              </Link>
+
               <Link
                 to="/pcb-services"
-                className={`hidden md:flex px-4 h-full items-center transition ${
-                  location.pathname === '/pcb-services'
-                    ? 'bg-[#f37021] text-white shadow-sm'
-                    : 'text-slate-700 hover:text-[#f37021] hover:bg-slate-50'
+                className={`px-3.5 h-full flex items-center transition ${
+                  location.pathname === '/pcb-services' ? 'bg-blue-800 text-white' : 'hover:bg-blue-700/80 text-white/95'
                 }`}
               >
                 QUY TRÌNH & DFM
@@ -209,119 +320,111 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLookup }) => {
 
               <Link
                 to="/contact"
-                className={`hidden md:flex px-4 h-full items-center transition ${
-                  location.pathname === '/contact'
-                    ? 'bg-[#f37021] text-white shadow-sm'
-                    : 'text-slate-700 hover:text-[#f37021] hover:bg-slate-50'
+                className={`px-3.5 h-full flex items-center transition ${
+                  location.pathname === '/contact' ? 'bg-blue-800 text-white' : 'hover:bg-blue-700/80 text-white/95'
                 }`}
               >
                 LIÊN HỆ
               </Link>
-
-              <Link
-                to="/policy"
-                className={`hidden lg:flex px-4 h-full items-center transition ${
-                  location.pathname === '/policy'
-                    ? 'bg-[#f37021] text-white shadow-sm'
-                    : 'text-slate-700 hover:text-[#f37021] hover:bg-slate-50'
-                }`}
-              >
-                AN NINH MẠNG & BẢO MẬT
-              </Link>
             </nav>
 
-            <div className="hidden sm:flex items-center gap-2 text-slate-500 font-mono text-[11px]">
-              <span className="font-bold text-slate-800">🇻🇳 VN</span>
-              <span>|</span>
-              <span className="hover:text-slate-800 cursor-pointer">🇬🇧 EN</span>
+            {/* Right: Hotline */}
+            <div className="flex items-center gap-2">
+              <a
+                href={PCB_CONFIG_DATA.CONTACT.zaloUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1 bg-white text-blue-700 hover:bg-sky-50 rounded text-xs font-bold font-mono transition shadow-xs"
+              >
+                <PhoneCall className="w-3.5 h-3.5 text-blue-600" />
+                <span>Hotline: {PCB_CONFIG_DATA.CONTACT.hotlineDisplay}</span>
+              </a>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 4. DARK GREEN SUBNAV BAR (Y HỆT ẢNH 1: GỬI ĐƠN HÀNG, QUY TRÌNH, THÔNG SỐ...) */}
-      <div className="bg-[#004d26] text-white text-[11px] font-bold uppercase tracking-wider py-1.5 px-4 hidden md:block">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-5">
-            <Link
-              to="/pcb-quote"
-              className="px-2.5 py-1 rounded bg-[#00381c] border border-green-600/60 hover:bg-green-800 transition flex items-center gap-1.5 text-amber-300"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>GỬI ĐƠN HÀNG</span>
-            </Link>
-            <Link to="/pcb-services" className="hover:text-amber-300 transition">
-              QUY TRÌNH ĐẶT HÀNG
-            </Link>
-            <Link to="/pcb-services" className="hover:text-amber-300 transition">
-              THÔNG SỐ KỸ THUẬT
-            </Link>
-            <button type="button" onClick={onOpenLookup} className="hover:text-amber-300 transition uppercase">
-              TỔNG HỢP ĐƠN HÀNG
-            </button>
-            <Link to="/pcb-quote" className="hover:text-amber-300 transition">
-              HÌNH ẢNH 3D
-            </Link>
-            <Link to="/policy" className="hover:text-amber-300 transition">
-              BẢO MẬT GERBER
-            </Link>
-          </div>
-
-          <div className="font-mono text-[11px] text-emerald-300">
-            Hotline: <b>{PCB_CONFIG_DATA.CONTACT.hotlineDisplay}</b>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile Drawer Menu */}
+      {/* 4. MOBILE MENU ACCORDION */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-white border-b border-slate-200 px-4 py-3 space-y-2 text-xs font-bold animate-fade-in shadow-xl">
-          <Link
-            to="/products"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 px-3 rounded hover:bg-slate-100 text-slate-800"
-          >
-            LINH KIỆN ĐIỆN TỬ
-          </Link>
-          <Link
-            to="/pcb-quote?service=pcb"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 px-3 rounded bg-orange-50 text-[#f37021]"
-          >
-            GIA CÔNG MẠCH IN (PCB)
-          </Link>
-          <Link
-            to="/pcb-quote?service=assembly"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 px-3 rounded bg-orange-50 text-[#f37021]"
-          >
-            GIA CÔNG HÀN LẮP (PCBA)
-          </Link>
-          <Link
-            to="/pcb-services"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 px-3 rounded hover:bg-slate-100 text-slate-800"
-          >
-            QUY TRÌNH ĐẶT HÀNG & DFM
-          </Link>
-          <Link
-            to="/policy"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 px-3 rounded hover:bg-slate-100 text-slate-800"
-          >
-            CHÍNH SÁCH AN NINH MẠNG & BẢO MẬT
-          </Link>
-          <button
-            type="button"
-            onClick={() => {
-              setMobileMenuOpen(false);
-              onOpenLookup();
-            }}
-            className="w-full text-left py-2 px-3 rounded hover:bg-slate-100 text-slate-800 flex items-center justify-between"
-          >
-            <span>TRA CỨU TIẾN ĐỘ ĐƠN HÀNG</span>
-            <FileSearch className="w-4 h-4 text-slate-400" />
-          </button>
+        <div className="md:hidden bg-white border-b border-slate-200 px-4 py-4 space-y-3 animate-fade-in text-xs font-semibold">
+          <form onSubmit={handleSearchSubmit} className="flex items-center">
+            <input
+              type="text"
+              placeholder="Tìm kiếm sản phẩm, linh kiện..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-l-lg text-xs"
+            />
+            <button type="submit" className="px-4 py-2 bg-sky-600 text-white rounded-r-lg">
+              <Search className="w-4 h-4" />
+            </button>
+          </form>
+
+          <div className="space-y-1 pt-2 border-t border-slate-100">
+            <Link
+              to="/"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-slate-800 hover:text-sky-600 uppercase"
+            >
+              TRANG CHỦ
+            </Link>
+            <Link
+              to="/products"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-slate-800 hover:text-sky-600 uppercase"
+            >
+              DANH MỤC SẢN PHẨM
+            </Link>
+            <Link
+              to="/pcb-quote?service=pcb"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-sky-700 font-bold uppercase"
+            >
+              GIA CÔNG MẠCH IN (PCB)
+            </Link>
+            <Link
+              to="/pcb-quote?service=assembly"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-orange-600 font-bold uppercase"
+            >
+              GIA CÔNG HÀN LẮP (PCBA)
+            </Link>
+            <Link
+              to="/pcb-services"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-slate-800 hover:text-sky-600 uppercase"
+            >
+              QUY TRÌNH & DFM
+            </Link>
+            <Link
+              to="/contact"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-slate-800 hover:text-sky-600 uppercase"
+            >
+              LIÊN HỆ
+            </Link>
+            <Link
+              to="/terms"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-slate-500 hover:text-slate-800"
+            >
+              Điều khoản sử dụng
+            </Link>
+            <Link
+              to="/privacy"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-slate-500 hover:text-slate-800"
+            >
+              Chính sách bảo mật
+            </Link>
+            <Link
+              to="/support"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-slate-500 hover:text-slate-800"
+            >
+              Chính sách hỗ trợ
+            </Link>
+          </div>
         </div>
       )}
     </header>

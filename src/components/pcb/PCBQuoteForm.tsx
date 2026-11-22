@@ -1,22 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { PCBSpec, PCBRequest, PCBAttachedFile, ServiceType } from '../../lib/types';
 import { estimatePCBPrice, PCB_CONFIG_DATA } from '../../lib/pricing';
+import { analyzeGerberZip } from '../../lib/gerberParser';
 import { db } from '../../lib/db';
 import { 
   Plus, 
   Trash2, 
   UploadCloud, 
   FileArchive, 
-  CheckCircle, 
-  Clock, 
   Send, 
-  ShieldCheck, 
-  Search,
-  Sparkles,
-  Layers,
-  Wrench,
   AlertCircle,
-  Cpu
+  FileText,
+  Ruler,
+  CheckCircle2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -28,6 +25,57 @@ interface PCBQuoteFormProps {
   onOrderSuccess: (request: PCBRequest) => void;
 }
 
+const DEFAULT_PCB_SPEC: PCBSpec = {
+  id: 1,
+  specId: 1,
+  tabName: 'THÔNG SỐ 1',
+  serviceType: 'pcb',
+  width: 100,
+  height: 80,
+  deliveryTime: '13 - 17 Ngày (Trung bình 50 đơn gần nhất: 10.8 ngày)',
+  quantity: '10',
+  material: 'FR-4',
+  layers: '2 Lớp',
+  thickness: '1.6mm',
+  copperWeight: '1.0oz',
+  surfaceFinish: 'Mạ Thiếc',
+  maskColor: 'Xanh lá',
+  minTrace: '0.15mm (6mils) ↑',
+  minDrill: '0.3mm ↑',
+  bgaPitch: 'Không có',
+  stencil: 'Không',
+  extraRequirements: [],
+  shippingMethod: 'ViettelPost',
+  files: [],
+};
+
+const DEFAULT_ASSEMBLY_SPEC: PCBSpec = {
+  id: 1,
+  specId: 1,
+  tabName: 'THÔNG SỐ 1',
+  serviceType: 'assembly',
+  width: 100,
+  height: 80,
+  deliveryTime: '13 - 17 Ngày (Trung bình 50 đơn gần nhất: 10.8 ngày)',
+  quantity: '10',
+  material: 'FR-4',
+  layers: '2 Lớp',
+  thickness: '1.6mm',
+  copperWeight: '1.0oz',
+  surfaceFinish: 'Mạ Vàng',
+  maskColor: 'Xanh lá',
+  minTrace: '0.15mm (6mils) ↑',
+  minDrill: '0.3mm ↑',
+  bgaPitch: 'Không có',
+  stencil: 'Không',
+  extraRequirements: [],
+  shippingMethod: 'ViettelPost',
+  assemblyReqs: ['SMT mặt TOP', 'Hàn cắm mặt TOP'],
+  componentOrderCode: '',
+  pcbOrderCode: '',
+  files: [],
+};
+
 export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
   currentSpec,
   activeService,
@@ -35,12 +83,18 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
   onOpenLookup,
   onOrderSuccess,
 }) => {
-  // Specs Tabs State
-  const [specs, setSpecs] = useState<Record<number, PCBSpec>>({
-    1: { ...currentSpec, serviceType: activeService },
+  // SEPARATE STATE FOR PCB AND ASSEMBLY (100% ISOLATED)
+  const [pcbSpecs, setPcbSpecs] = useState<Record<number, PCBSpec>>({
+    1: { ...DEFAULT_PCB_SPEC, ...currentSpec, serviceType: 'pcb', files: currentSpec.files || [] },
   });
-  const [currentTabId, setCurrentTabId] = useState<number>(1);
-  const [tabCounter, setTabCounter] = useState<number>(1);
+  const [pcbTabId, setPcbTabId] = useState<number>(1);
+  const [pcbTabCounter, setPcbTabCounter] = useState<number>(1);
+
+  const [assemblySpecs, setAssemblySpecs] = useState<Record<number, PCBSpec>>({
+    1: { ...DEFAULT_ASSEMBLY_SPEC, serviceType: 'assembly', files: [] },
+  });
+  const [assemblyTabId, setAssemblyTabId] = useState<number>(1);
+  const [assemblyTabCounter, setAssemblyTabCounter] = useState<number>(1);
 
   // Customer Contact Fields
   const [customerCode, setCustomerCode] = useState('CXT' + Math.floor(100000 + Math.random() * 900000));
@@ -52,8 +106,11 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
   const [termsAccepted, setTermsAccepted] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [parsingNotice, setParsingNotice] = useState<string | null>(null);
 
-  // Auto-fill customer profile
+  const isPCB = activeService === 'pcb';
+
+  // Load customer profile from DB
   useEffect(() => {
     const profile = db.getCustomerProfile();
     if (profile.name) setCustomerName(profile.name);
@@ -62,90 +119,145 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
     if (profile.address) setCustomerAddress(profile.address);
   }, []);
 
-  // When activeService changes from prop, update current tab
+  // Get active spec according to current activeService
+  const activeSpec: PCBSpec = isPCB 
+    ? (pcbSpecs[pcbTabId] || DEFAULT_PCB_SPEC) 
+    : (assemblySpecs[assemblyTabId] || DEFAULT_ASSEMBLY_SPEC);
+
+  // Notify parent of spec changes for 3D viewer
   useEffect(() => {
-    updateCurrentSpecField({ serviceType: activeService });
-  }, [activeService]);
+    onSpecChange(activeSpec);
+  }, [activeService, pcbTabId, assemblyTabId, pcbSpecs, assemblySpecs]);
 
   const updateCurrentSpecField = (fields: Partial<PCBSpec>) => {
-    setSpecs(prev => {
-      const updated = { ...prev[currentTabId], ...fields };
-      onSpecChange(updated);
-      return { ...prev, [currentTabId]: updated };
-    });
-  };
-
-  const activeSpec = specs[currentTabId] || currentSpec;
-
-  const handleAddTab = () => {
-    const count = Object.keys(specs).length;
-    if (count >= 10) {
-      alert('Mỗi yêu cầu nhận tối đa 10 thông số.');
-      return;
+    if (isPCB) {
+      setPcbSpecs(prev => {
+        const updated = { ...prev[pcbTabId], ...fields };
+        return { ...prev, [pcbTabId]: updated };
+      });
+    } else {
+      setAssemblySpecs(prev => {
+        const updated = { ...prev[assemblyTabId], ...fields };
+        return { ...prev, [assemblyTabId]: updated };
+      });
     }
-    const nextId = tabCounter + 1;
-    setTabCounter(nextId);
-
-    const newSpec: PCBSpec = {
-      ...currentSpec,
-      id: nextId,
-      specId: nextId,
-      tabName: `THÔNG SỐ ${nextId}`,
-      serviceType: activeService,
-      files: [],
-    };
-
-    setSpecs(prev => ({ ...prev, [nextId]: newSpec }));
-    setCurrentTabId(nextId);
-    onSpecChange(newSpec);
   };
 
+  // Add Spec Tab
+  const handleAddTab = () => {
+    if (isPCB) {
+      const count = Object.keys(pcbSpecs).length;
+      if (count >= 10) return alert('Mỗi yêu cầu nhận tối đa 10 thông số.');
+      const nextId = pcbTabCounter + 1;
+      setPcbTabCounter(nextId);
+      const newSpec: PCBSpec = {
+        ...DEFAULT_PCB_SPEC,
+        id: nextId,
+        specId: nextId,
+        tabName: `THÔNG SỐ ${nextId}`,
+        serviceType: 'pcb',
+        files: [],
+      };
+      setPcbSpecs(prev => ({ ...prev, [nextId]: newSpec }));
+      setPcbTabId(nextId);
+    } else {
+      const count = Object.keys(assemblySpecs).length;
+      if (count >= 10) return alert('Mỗi yêu cầu nhận tối đa 10 thông số.');
+      const nextId = assemblyTabCounter + 1;
+      setAssemblyTabCounter(nextId);
+      const newSpec: PCBSpec = {
+        ...DEFAULT_ASSEMBLY_SPEC,
+        id: nextId,
+        specId: nextId,
+        tabName: `THÔNG SỐ ${nextId}`,
+        serviceType: 'assembly',
+        files: [],
+      };
+      setAssemblySpecs(prev => ({ ...prev, [nextId]: newSpec }));
+      setAssemblyTabId(nextId);
+    }
+  };
+
+  // Remove Spec Tab
   const handleRemoveTab = (tabId: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    const keys = Object.keys(specs).map(Number);
-    if (keys.length <= 1) return;
-
-    const newSpecs = { ...specs };
-    delete newSpecs[tabId];
-
-    const remainingKeys = Object.keys(newSpecs).map(Number);
-    const newActiveId = remainingKeys[0];
-
-    setSpecs(newSpecs);
-    setCurrentTabId(newActiveId);
-    onSpecChange(newSpecs[newActiveId]);
+    if (isPCB) {
+      const keys = Object.keys(pcbSpecs).map(Number);
+      if (keys.length <= 1) return;
+      const next = { ...pcbSpecs };
+      delete next[tabId];
+      const remaining = Object.keys(next).map(Number);
+      setPcbSpecs(next);
+      setPcbTabId(remaining[0]);
+    } else {
+      const keys = Object.keys(assemblySpecs).map(Number);
+      if (keys.length <= 1) return;
+      const next = { ...assemblySpecs };
+      delete next[tabId];
+      const remaining = Object.keys(next).map(Number);
+      setAssemblySpecs(next);
+      setAssemblyTabId(remaining[0]);
+    }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  // Upload file - Completely isolated per service and per tab
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
 
-    const newFiles: PCBAttachedFile[] = Array.from(files).map(file => ({
+    setParsingNotice(null);
+    const newFiles: PCBAttachedFile[] = Array.from(fileList).map(file => ({
       name: file.name,
       size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
       type: file.type || 'file',
     }));
 
-    const currentFiles = activeSpec.files || [];
-    if (currentFiles.length + newFiles.length > 5) {
+    const curFiles = activeSpec.files || [];
+    if (curFiles.length + newFiles.length > 5) {
       alert('Mỗi thông số nhận tối đa 5 file.');
       return;
     }
 
-    updateCurrentSpecField({ files: [...currentFiles, ...newFiles] });
+    const updatedFiles = [...curFiles, ...newFiles];
+    updateCurrentSpecField({ files: updatedFiles });
+
+    // If it's a Gerber ZIP file in PCB mode: Auto extract dimensions!
+    const zipFile = Array.from(fileList).find(f => f.name.toLowerCase().endsWith('.zip'));
+    if (isPCB && zipFile) {
+      try {
+        const analysis = await analyzeGerberZip(zipFile);
+        if (analysis.success && analysis.boardWidthMm && analysis.boardHeightMm) {
+          updateCurrentSpecField({
+            width: analysis.boardWidthMm,
+            height: analysis.boardHeightMm,
+            files: updatedFiles,
+          });
+          setParsingNotice(`✓ Đã tự động nhận diện kích thước chính xác từ file Gerber: ${analysis.boardWidthMm} x ${analysis.boardHeightMm} mm`);
+        }
+      } catch (err) {
+        console.warn('Lỗi phân tích file Gerber:', err);
+      }
+    }
+
     e.target.value = '';
   };
 
   const handleRemoveFile = (index: number) => {
-    const updatedFiles = (activeSpec.files || []).filter((_, i) => i !== index);
-    updateCurrentSpecField({ files: updatedFiles });
+    const updated = (activeSpec.files || []).filter((_, i) => i !== index);
+    updateCurrentSpecField({ files: updated });
   };
 
-  const estimatedPrice = estimatePCBPrice(activeSpec);
+  const estimatedPrice = isPCB ? estimatePCBPrice(activeSpec) : null;
 
+  // Handle Form Submit
   const handleSubmitQuote = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
+
+    if (!termsAccepted) {
+      setErrorMessage('Quý khách vui lòng tích chọn đồng ý với Điều khoản sử dụng, Chính sách bảo mật và Chính sách hỗ trợ.');
+      return;
+    }
 
     if (!customerPhone.trim() || customerPhone.replace(/\D/g, '').length < 9) {
       setErrorMessage('Vui lòng nhập Số điện thoại hợp lệ (tối thiểu 9 chữ số) để kỹ thuật viên liên hệ báo giá!');
@@ -161,8 +273,8 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
         address: customerAddress,
       });
 
-      const allSpecsList: PCBSpec[] = Object.values(specs);
-      const allFileNames: string[] = allSpecsList.flatMap(s => (s.files || []).map(f => f.name));
+      const currentSpecsList = isPCB ? Object.values(pcbSpecs) : Object.values(assemblySpecs);
+      const allFileNames = currentSpecsList.flatMap(s => (s.files || []).map(f => f.name));
 
       const newRequest = await db.createPCBRequest({
         customerName: customerName || 'Khách Hàng',
@@ -170,7 +282,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
         customerEmail: customerEmail.trim() || undefined,
         customerAddress: customerAddress.trim() || undefined,
         notes: notes.trim() || undefined,
-        specs: allSpecsList,
+        specs: currentSpecsList,
         estimatedPrice: estimatedPrice || null,
         files: allFileNames,
       });
@@ -187,24 +299,25 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
     }
   };
 
-  const isPCB = activeService === 'pcb';
+  const activeTabs = isPCB ? pcbSpecs : assemblySpecs;
+  const currentTab = isPCB ? pcbTabId : assemblyTabId;
 
   return (
     <form onSubmit={handleSubmitQuote} className="space-y-5 text-slate-800 text-[13px] font-sans">
-      {/* 1. KHỐI THÔNG TIN LIÊN HỆ (Y HỆT ẢNH 1 & ẢNH 2) */}
+      {/* 1. KHỐI THÔNG TIN LIÊN HỆ */}
       <div className="bg-white border-2 border-[#004d26] rounded-sm p-4 space-y-3 shadow-xs">
         <h3 className="font-bold text-[13px] text-slate-900 uppercase tracking-wide border-b border-slate-200 pb-1">
           THÔNG TIN LIÊN HỆ
         </h3>
 
-        {/* If assembly: Show red notes banner as in Image 2 */}
+        {/* If assembly: Show red notes banner as in Image 3 */}
         {!isPCB && (
-          <div className="p-3 bg-red-50/70 border border-red-200 text-red-700 text-xs space-y-1 font-medium">
+          <div className="p-3 bg-red-50/80 border border-red-200 text-red-700 text-xs space-y-1 font-medium leading-relaxed">
             <div>• Quý khách gửi file và yêu cầu đến email <b>smt@thegioilinhkienpcb.vn</b> hoặc đặt online với form dưới</div>
-            <div>• Cam kết bảo mật file thiết kế của khách hàng 100%</div>
+            <div>• CXT cam kết bảo mật file thiết kế của khách hàng</div>
             <div>• Nếu quý khách đã đặt linh kiện, mạch in vui lòng nhập mã đơn hàng tương ứng</div>
             <div>• File đính kèm bao gồm: <b>BOM + Gerber + Pick and Place file</b>. Hoặc: <b>BOM + PCB file</b></div>
-            <div>• Thêm Tab THÔNG SỐ để đặt thêm mạch cần hàn lắp</div>
+            <div>• Thêm <b>TAB THÔNG SỐ</b> để đặt thêm mạch cần hàn lắp</div>
           </div>
         )}
 
@@ -262,21 +375,25 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
             </div>
           </div>
 
-          {/* Center Notice Box (In PCB Mode as in Image 1) */}
+          {/* Center Notice Box */}
           {isPCB ? (
-            <div className="md:col-span-4 p-2.5 bg-amber-50/60 border border-amber-200 rounded text-[11px] space-y-1 text-slate-700 leading-snug">
+            <div className="md:col-span-4 p-2.5 bg-amber-50/70 border border-amber-200 rounded text-[11px] space-y-1.5 text-slate-700 leading-snug">
               <div className="font-bold text-red-600 uppercase">
                 GIÁ MẠCH MẪU (dưới 10x10cm, 2 lớp, thông số mặc định):
               </div>
-              <div>• <b>5 mạch: 110.000đ | 10 mạch: 150.000đ</b> (Đường bộ)</div>
-              <div>• <b>5 mạch: 310.000đ | 10 mạch: 360.000đ</b> (Đường bay)</div>
-              <div className="font-bold text-red-600">GIÁ MẠCH SẢN XUẤT (theo m2): Liên hệ qua Zalo!</div>
+              <div className="font-semibold text-slate-900">
+                • 5 mạch: <span className="text-red-600 font-bold">149.000đ</span> | 10 mạch: <span className="text-red-600 font-bold">199.000đ</span> (Đường bộ)
+              </div>
+              <div className="font-semibold text-slate-900">
+                • 5 mạch: <span className="text-red-600 font-bold">349.000đ</span> | 10 mạch: <span className="text-red-600 font-bold">399.000đ</span> (Đường bay)
+              </div>
+              <div className="font-bold text-red-600 pt-0.5">GIÁ MẠCH SẢN XUẤT (theo m2): Liên hệ qua Zalo!</div>
               <div className="text-[10px] text-slate-500 pt-1 border-t border-amber-200">
                 Mạch in luôn được kiểm tra sau khi sản xuất để đảm bảo không có lỗi. Cam kết bảo mật file thiết kế của khách hàng.
               </div>
             </div>
           ) : (
-            <div className="md:col-span-4 p-2.5 bg-blue-50/60 border border-blue-200 rounded text-[11px] space-y-1 text-slate-700">
+            <div className="md:col-span-4 p-2.5 bg-blue-50/70 border border-blue-200 rounded text-[11px] space-y-1 text-slate-700">
               <div className="font-bold text-blue-900 uppercase">TIÊU CHUẨN GIA CÔNG HÀN LẮP (PCBA):</div>
               <div>• Hỗ trợ dán SMT linh kiện 0402, 0603, 0805, QFP, QFN, BGA</div>
               <div>• Kiểm tra quang học tự động AOI 100% sau lò hàn Reflow</div>
@@ -298,7 +415,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
         </div>
       </div>
 
-      {/* 2. KHỐI YÊU CẦU KỸ THUẬT (Y HỆT ẢNH 1 & ẢNH 2) */}
+      {/* 2. KHỐI YÊU CẦU KỸ THUẬT */}
       <div className="bg-white border-2 border-[#004d26] rounded-sm p-4 space-y-4 shadow-xs">
         {/* Title & Multi-Tab Buttons */}
         <div className="border-b border-slate-200 pb-3">
@@ -307,15 +424,15 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
           </div>
 
           <div className="flex items-center gap-2 pt-2.5 overflow-x-auto">
-            {Object.entries(specs).map(([idStr, spec]) => {
+            {Object.entries(activeTabs).map(([idStr, spec]) => {
               const tabId = Number(idStr);
-              const isActive = tabId === currentTabId;
+              const isActive = tabId === currentTab;
               return (
                 <div
                   key={tabId}
                   onClick={() => {
-                    setCurrentTabId(tabId);
-                    onSpecChange(specs[tabId]);
+                    if (isPCB) setPcbTabId(tabId);
+                    else setAssemblyTabId(tabId);
                   }}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-sm text-xs font-bold uppercase cursor-pointer border transition select-none ${
                     isActive
@@ -324,7 +441,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
                   }`}
                 >
                   <span>{spec.tabName}</span>
-                  {Object.keys(specs).length > 1 && (
+                  {Object.keys(activeTabs).length > 1 && (
                     <button
                       type="button"
                       onClick={(e) => handleRemoveTab(tabId, e)}
@@ -349,10 +466,10 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
           </div>
         </div>
 
-        {/* Assembly Specific Code Inputs (Image 2) */}
+        {/* Assembly Specific Code Inputs (Image 3) */}
         {!isPCB && (
           <div className="space-y-3 pb-3 border-b border-slate-200">
-            <div className="font-bold text-xs uppercase text-slate-800">Đơn Hàng</div>
+            <div className="font-bold text-xs uppercase text-slate-800">Đơn Hàng:</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
               <input
                 type="text"
@@ -372,7 +489,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
           </div>
         )}
 
-        {/* CHỌN FILE ĐÍNH KÈM (Orange Button as in Image 1 & 2) */}
+        {/* CHỌN FILE ĐÍNH KÈM (Orange Button as in Image 2 & 3) */}
         <div className="space-y-2 pb-3 border-b border-slate-200">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
             <label className="px-5 py-2 bg-[#f37021] hover:bg-[#d85d10] text-white font-bold text-xs uppercase rounded cursor-pointer transition shadow-sm inline-flex items-center gap-2">
@@ -381,15 +498,25 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
               <input
                 type="file"
                 multiple
-                accept=".zip,.rar,.csv,.xlsx,.xls,.txt,.pdf"
+                accept={isPCB ? ".zip,.rar" : ".zip,.rar,.csv,.xlsx,.xls,.txt,.pdf"}
                 onChange={handleFileUpload}
                 className="hidden"
               />
             </label>
             <span className="text-xs text-slate-500 italic">
-              Kéo và thả file ở đây (quý khách chọn 1 file nén Gerber/BOM mỗi tab thông số, tối đa 20MB)
+              {isPCB 
+                ? 'Kéo và thả file ở đây (quý khách chọn 1 file nén Gerber .ZIP mỗi tab thông số để xem 3D và tự động đo kích thước)'
+                : 'Kéo và thả file ở đây (quý khách chọn 1 file mỗi tab thông số: BOM + Gerber + Pick and Place)'
+              }
             </span>
           </div>
+
+          {parsingNotice && (
+            <div className="p-2 bg-emerald-50 border border-emerald-300 rounded text-emerald-800 text-xs font-mono font-semibold flex items-center gap-2 animate-fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{parsingNotice}</span>
+            </div>
+          )}
 
           {/* Uploaded File List */}
           {(activeSpec.files || []).length > 0 && (
@@ -408,7 +535,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
                     type="button"
                     onClick={() => handleRemoveFile(idx)}
                     className="p-1 text-slate-400 hover:text-red-500 transition"
-                    title="Xóa file"
+                    title="Xóa file này"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -418,21 +545,25 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
           )}
         </div>
 
-        {/* Dimensons (Width x Height mm) */}
+        {/* Kích thước bo mạch (mm) */}
         <div className="space-y-1.5 pb-3 border-b border-slate-200">
-          <label className="block font-bold text-xs uppercase text-slate-800">
-            Kích thước bo mạch (mm):
-          </label>
+          <div className="flex items-center justify-between max-w-sm">
+            <label className="block font-bold text-xs uppercase text-slate-800">
+              Kích thước bo mạch (mm):
+            </label>
+            <span className="text-[11px] text-blue-600 font-mono">Tự động lấy từ Gerber</span>
+          </div>
           <div className="flex items-center gap-3 max-w-sm">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-slate-500">Rộng:</span>
               <input
                 type="number"
-                min="10"
+                min="5"
                 max="1000"
+                step="0.1"
                 value={activeSpec.width}
-                onChange={(e) => updateCurrentSpecField({ width: Math.max(10, parseFloat(e.target.value) || 10) })}
-                className="w-24 px-2 py-1 border border-slate-300 rounded font-mono text-xs text-center"
+                onChange={(e) => updateCurrentSpecField({ width: Math.max(5, parseFloat(e.target.value) || 10) })}
+                className="w-24 px-2 py-1 border border-slate-300 rounded font-mono text-xs text-center font-bold text-blue-700 bg-white"
               />
               <span className="text-xs text-slate-400 font-mono">mm</span>
             </div>
@@ -441,18 +572,19 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
               <span className="text-xs text-slate-500">Dài:</span>
               <input
                 type="number"
-                min="10"
+                min="5"
                 max="1000"
+                step="0.1"
                 value={activeSpec.height}
-                onChange={(e) => updateCurrentSpecField({ height: Math.max(10, parseFloat(e.target.value) || 10) })}
-                className="w-24 px-2 py-1 border border-slate-300 rounded font-mono text-xs text-center"
+                onChange={(e) => updateCurrentSpecField({ height: Math.max(5, parseFloat(e.target.value) || 10) })}
+                className="w-24 px-2 py-1 border border-slate-300 rounded font-mono text-xs text-center font-bold text-blue-700 bg-white"
               />
               <span className="text-xs text-slate-400 font-mono">mm</span>
             </div>
           </div>
         </div>
 
-        {/* Thời gian giao hàng (Image 1) */}
+        {/* Thời gian giao hàng (Image 2) */}
         {isPCB && (
           <div className="space-y-1.5 pb-3 border-b border-slate-200">
             <label className="block font-bold text-xs uppercase text-slate-800">Thời gian giao hàng:</label>
@@ -477,7 +609,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
           </div>
         )}
 
-        {/* Số lượng (Image 1 & 2) */}
+        {/* Số lượng (Image 2 & 3) */}
         <div className="space-y-1.5 pb-3 border-b border-slate-200">
           <label className="block font-bold text-xs uppercase text-slate-800">Số lượng:</label>
           <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs items-center">
@@ -504,7 +636,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
           </div>
         </div>
 
-        {/* IF ASSEMBLY: Yêu cầu hàn linh kiện (Image 2) */}
+        {/* IF ASSEMBLY: Yêu cầu hàn linh kiện (Image 3) */}
         {!isPCB && (
           <div className="space-y-1.5 pb-3 border-b border-slate-200">
             <label className="block font-bold text-xs uppercase text-slate-800">Yêu cầu hàn linh kiện:</label>
@@ -531,7 +663,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
           </div>
         )}
 
-        {/* IF PCB: Vật liệu, Số lớp, Độ dày phíp, Độ dày đồng, Kiểu mạ, Màu phủ (Image 1) */}
+        {/* IF PCB: Vật liệu, Số lớp, Độ dày phíp, Độ dày đồng, Kiểu mạ, Màu phủ (Image 2) */}
         {isPCB && (
           <>
             {/* Vật liệu */}
@@ -559,7 +691,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
               <label className="block font-bold text-xs uppercase text-slate-800">Số lớp:</label>
               <div className="flex flex-wrap gap-5 text-xs">
                 {['1 Lớp', '2 Lớp', '4 Lớp', '6 Lớp', '8 -> 20 Lớp'].map((layer) => (
-                  <label key={layer} className="flex items-center gap-1 cursor-pointer">
+                  <label key={layer} className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="radio"
                       name="layers"
@@ -578,17 +710,17 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
             <div className="space-y-1.5 pb-3 border-b border-slate-200">
               <label className="block font-bold text-xs uppercase text-slate-800">Độ dày phíp:</label>
               <div className="flex flex-wrap gap-4 text-xs">
-                {['0.4mm', '0.6mm', '0.8mm', '1.0mm', '1.2mm', '1.6mm', '2.0mm', '2.5mm', '3.0mm', 'Theo Stackup'].map((thick) => (
-                  <label key={thick} className="flex items-center gap-1 cursor-pointer">
+                {['0.4mm', '0.6mm', '0.8mm', '1.0mm', '1.2mm', '1.6mm', '2.0mm', '2.5mm', '3.0mm', 'Theo Stackup'].map((th) => (
+                  <label key={th} className="flex items-center gap-1 cursor-pointer">
                     <input
                       type="radio"
                       name="thickness"
-                      value={thick}
-                      checked={activeSpec.thickness === thick}
-                      onChange={() => updateCurrentSpecField({ thickness: thick })}
+                      value={th}
+                      checked={activeSpec.thickness === th}
+                      onChange={() => updateCurrentSpecField({ thickness: th })}
                       className="accent-[#004d26]"
                     />
-                    <span>{thick}</span>
+                    <span>{th}</span>
                   </label>
                 ))}
               </div>
@@ -599,7 +731,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
               <label className="block font-bold text-xs uppercase text-slate-800">Độ dày đồng:</label>
               <div className="flex flex-wrap gap-5 text-xs">
                 {['0.5oz', '1.0oz', '1.5oz', '2.0oz', 'Theo Stackup'].map((cop) => (
-                  <label key={cop} className="flex items-center gap-1 cursor-pointer">
+                  <label key={cop} className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="radio"
                       name="copperWeight"
@@ -618,50 +750,47 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
             <div className="space-y-1.5 pb-3 border-b border-slate-200">
               <label className="block font-bold text-xs uppercase text-slate-800">Kiểu mạ:</label>
               <div className="flex flex-wrap gap-5 text-xs">
-                {['Mạ Thiếc', 'Mạ Vàng', 'Mạ OSP', 'Mạ Thiếc không chì', 'Không mạ'].map((m) => (
-                  <label key={m} className="flex items-center gap-1 cursor-pointer">
+                {['Mạ Thiếc', 'Mạ Vàng', 'Mạ OSP', 'Mạ Thiếc không chì', 'Không mạ'].map((fin) => (
+                  <label key={fin} className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="radio"
                       name="surfaceFinish"
-                      value={m}
-                      checked={activeSpec.surfaceFinish === m}
-                      onChange={() => updateCurrentSpecField({ surfaceFinish: m })}
+                      value={fin}
+                      checked={activeSpec.surfaceFinish === fin}
+                      onChange={() => updateCurrentSpecField({ surfaceFinish: fin })}
                       className="accent-[#004d26]"
                     />
-                    <span>{m}</span>
+                    <span>{fin}</span>
                   </label>
                 ))}
               </div>
             </div>
 
-            {/* Màu phủ (Có ô màu sắc trực quan) */}
+            {/* Màu phủ */}
             <div className="space-y-1.5 pb-3 border-b border-slate-200">
-              <label className="block font-bold text-xs uppercase text-slate-800">Màu phủ (Solder Mask):</label>
-              <div className="flex flex-wrap gap-4 text-xs items-center">
+              <label className="block font-bold text-xs uppercase text-slate-800">Màu phủ:</label>
+              <div className="flex flex-wrap gap-5 text-xs">
                 {[
-                  { name: 'Xanh lá', hex: '#0a632d' },
-                  { name: 'Xanh dương', hex: '#0c4a9e' },
-                  { name: 'Trắng', hex: '#ffffff', border: true },
-                  { name: 'Đỏ', hex: '#a81c1c' },
-                  { name: 'Đen', hex: '#141416' },
-                  { name: 'Vàng', hex: '#eab308' },
-                  { name: 'Tím', hex: '#6b21a8' },
-                  { name: 'Không phủ', hex: '#b45309' },
-                ].map((col) => (
-                  <label key={col.name} className="flex items-center gap-1.5 cursor-pointer">
+                  { name: 'Xanh lá', color: 'bg-emerald-600' },
+                  { name: 'Xanh dương', color: 'bg-blue-600' },
+                  { name: 'Trắng', color: 'bg-slate-100 border border-slate-300' },
+                  { name: 'Đỏ', color: 'bg-red-600' },
+                  { name: 'Đen', color: 'bg-zinc-900' },
+                  { name: 'Vàng', color: 'bg-amber-400' },
+                  { name: 'Tím', color: 'bg-purple-700' },
+                  { name: 'Không phủ', color: 'bg-amber-700' }
+                ].map((c) => (
+                  <label key={c.name} className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="radio"
                       name="maskColor"
-                      value={col.name}
-                      checked={activeSpec.maskColor === col.name}
-                      onChange={() => updateCurrentSpecField({ maskColor: col.name })}
+                      value={c.name}
+                      checked={activeSpec.maskColor === c.name}
+                      onChange={() => updateCurrentSpecField({ maskColor: c.name })}
                       className="accent-[#004d26]"
                     />
-                    <span
-                      className={`w-3.5 h-3.5 rounded-xs inline-block ${col.border ? 'border border-slate-400' : ''}`}
-                      style={{ backgroundColor: col.hex }}
-                    />
-                    <span>{col.name}</span>
+                    <span className={`w-3 h-3 rounded-full ${c.color} inline-block`} />
+                    <span>{c.name}</span>
                   </label>
                 ))}
               </div>
@@ -670,18 +799,18 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
             {/* Kích thước đường mạch */}
             <div className="space-y-1.5 pb-3 border-b border-slate-200">
               <label className="block font-bold text-xs uppercase text-slate-800">Kích thước đường mạch:</label>
-              <div className="flex flex-wrap gap-4 text-xs">
-                {['0.15mm (6mils) ↑', '0.127mm (5mils) ↑', '0.1mm (4mils) ↑', '< 0.1mm (4mils) ↓'].map((t) => (
-                  <label key={t} className="flex items-center gap-1 cursor-pointer">
+              <div className="flex flex-wrap gap-5 text-xs">
+                {['0.15mm (6mils) ↑', '0.127mm (5mils) ↑', '0.1mm (4mils) ↑', '< 0.1mm (4mils) ↓'].map((trace) => (
+                  <label key={trace} className="flex items-center gap-1 cursor-pointer">
                     <input
                       type="radio"
                       name="minTrace"
-                      value={t}
-                      checked={activeSpec.minTrace === t}
-                      onChange={() => updateCurrentSpecField({ minTrace: t })}
+                      value={trace}
+                      checked={activeSpec.minTrace === trace}
+                      onChange={() => updateCurrentSpecField({ minTrace: trace })}
                       className="accent-[#004d26]"
                     />
-                    <span>{t}</span>
+                    <span>{trace}</span>
                   </label>
                 ))}
               </div>
@@ -690,18 +819,18 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
             {/* Đường kính lỗ khoan */}
             <div className="space-y-1.5 pb-3 border-b border-slate-200">
               <label className="block font-bold text-xs uppercase text-slate-800">Đường kính lỗ khoan:</label>
-              <div className="flex flex-wrap gap-4 text-xs">
-                {['0.3mm ↑', '0.25mm ↑', '0.2mm ↑', '< 0.2mm ↓'].map((d) => (
-                  <label key={d} className="flex items-center gap-1 cursor-pointer">
+              <div className="flex flex-wrap gap-5 text-xs">
+                {['0.3mm ↑', '0.25mm ↑', '0.2mm ↑', '< 0.2mm ↓'].map((drill) => (
+                  <label key={drill} className="flex items-center gap-1 cursor-pointer">
                     <input
                       type="radio"
                       name="minDrill"
-                      value={d}
-                      checked={activeSpec.minDrill === d}
-                      onChange={() => updateCurrentSpecField({ minDrill: d })}
+                      value={drill}
+                      checked={activeSpec.minDrill === drill}
+                      onChange={() => updateCurrentSpecField({ minDrill: drill })}
                       className="accent-[#004d26]"
                     />
-                    <span>{d}</span>
+                    <span>{drill}</span>
                   </label>
                 ))}
               </div>
@@ -710,27 +839,27 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
             {/* Chip BGA pitch */}
             <div className="space-y-1.5 pb-3 border-b border-slate-200">
               <label className="block font-bold text-xs uppercase text-slate-800">Chip BGA pitch:</label>
-              <div className="flex flex-wrap gap-4 text-xs">
-                {['0.35mm ↑', '0.3mm ↑', '0.25mm ↑', '0.25mm ↓', 'Không có'].map((b) => (
-                  <label key={b} className="flex items-center gap-1 cursor-pointer">
+              <div className="flex flex-wrap gap-5 text-xs">
+                {['0.35mm ↑', '0.3mm ↑', '0.25mm ↑', '< 0.25mm ↓', 'Không có'].map((bga) => (
+                  <label key={bga} className="flex items-center gap-1 cursor-pointer">
                     <input
                       type="radio"
                       name="bgaPitch"
-                      value={b}
-                      checked={activeSpec.bgaPitch === b}
-                      onChange={() => updateCurrentSpecField({ bgaPitch: b })}
+                      value={bga}
+                      checked={activeSpec.bgaPitch === bga}
+                      onChange={() => updateCurrentSpecField({ bgaPitch: bga })}
                       className="accent-[#004d26]"
                     />
-                    <span>{b}</span>
+                    <span>{bga}</span>
                   </label>
                 ))}
               </div>
             </div>
 
-            {/* Yêu cầu thêm (Checkboxes) */}
+            {/* Yêu cầu thêm */}
             <div className="space-y-1.5 pb-3 border-b border-slate-200">
               <label className="block font-bold text-xs uppercase text-slate-800">Yêu cầu thêm:</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
                 {[
                   'Ghép mạch',
                   'Ghép mạch có lỗ',
@@ -739,7 +868,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
                   'Không in linh kiện',
                   'Không in mã sản xuất',
                   'Hàn linh kiện (từ 20 mạch)',
-                  'Mạ nửa lỗ'
+                  'Mạ nửa lỗ (đường kính từ 0.8mm)'
                 ].map((req) => {
                   const isChecked = activeSpec.extraRequirements.includes(req);
                   return (
@@ -764,7 +893,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
           </>
         )}
 
-        {/* Đặt kèm Stencil (Image 1 & 2) */}
+        {/* Đặt kèm Stencil (Image 2 & 3) */}
         <div className="space-y-1.5 pb-3 border-b border-slate-200">
           <label className="block font-bold text-xs uppercase text-slate-800">Đặt kèm Stencil:</label>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 text-xs">
@@ -787,7 +916,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
           </div>
         </div>
 
-        {/* Cách thức nhận hàng (Image 1 & 2) */}
+        {/* Cách thức nhận hàng (Image 2 & 3) */}
         <div className="space-y-1.5 pb-3">
           <label className="block font-bold text-xs uppercase text-slate-800">Cách thức nhận hàng:</label>
           <div className="flex flex-wrap gap-5 text-xs">
@@ -805,6 +934,33 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
               </label>
             ))}
           </div>
+        </div>
+
+        {/* 3. POLICIES CONSENT CHECKBOX (Y HỆT ẢNH 5) */}
+        <div className="pt-3 pb-1 border-t border-slate-200">
+          <label className="flex items-center gap-2 cursor-pointer text-xs select-none">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 accent-sky-600"
+            />
+            <span className="text-slate-700">
+              Tôi đã đọc và đồng ý với{' '}
+              <Link to="/terms" target="_blank" className="text-cyan-600 hover:text-cyan-700 underline font-medium">
+                Điều khoản sử dụng
+              </Link>
+              {', '}
+              <Link to="/privacy" target="_blank" className="text-cyan-600 hover:text-cyan-700 underline font-medium">
+                Chính sách bảo mật
+              </Link>
+              {' và '}
+              <Link to="/support" target="_blank" className="text-cyan-600 hover:text-cyan-700 underline font-medium">
+                Chính sách hỗ trợ
+              </Link>
+              .
+            </span>
+          </label>
         </div>
 
         {/* Giá dự kiến & Nút Submit YÊU CẦU BÁO GIÁ */}

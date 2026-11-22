@@ -18,6 +18,9 @@ import { CheckoutPage } from './pages/CheckoutPage';
 import { OrderSuccessPage } from './pages/OrderSuccessPage';
 import { OrderLookupPage } from './pages/OrderLookupPage';
 import { PolicyPage } from './pages/PolicyPage';
+import { TermsPage } from './pages/TermsPage';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { SupportPage } from './pages/SupportPage';
 import { ContactPage } from './pages/ContactPage';
 
 // Admin Pages (Bảo Mật: /admin270906)
@@ -53,7 +56,10 @@ function AppContent() {
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/order-success/:code" element={<OrderSuccessPage />} />
           <Route path="/order-lookup" element={<OrderLookupPage />} />
-          <Route path="/policy" element={<PolicyPage />} />
+          <Route path="/policy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/support" element={<SupportPage />} />
           <Route path="/contact" element={<ContactPage />} />
 
           {/* CHE GIẤU HOÀN TOÀN /admin -> Tự động chuyển về trang chủ */}

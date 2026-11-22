@@ -421,8 +421,14 @@ export const CheckoutPage: React.FC = () => {
             )}
           </button>
 
-          <p className="text-[11px] text-center text-slate-400">
-            Bằng cách đặt hàng, bạn đồng ý với chính sách bán hàng & vận chuyển của Thế Giới Linh Kiện & PCB.
+          <p className="text-[11px] text-center text-slate-500">
+            Bằng cách đặt hàng, bạn đồng ý với{' '}
+            <Link to="/terms" target="_blank" className="text-sky-600 underline font-medium">Điều khoản sử dụng</Link>
+            {', '}
+            <Link to="/privacy" target="_blank" className="text-sky-600 underline font-medium">Chính sách bảo mật</Link>
+            {' và '}
+            <Link to="/support" target="_blank" className="text-sky-600 underline font-medium">Chính sách hỗ trợ</Link>
+            {' của Thế Giới Linh Kiện & PCB.'}
           </p>
         </div>
       </form>

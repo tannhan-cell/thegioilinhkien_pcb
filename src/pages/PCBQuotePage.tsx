@@ -137,7 +137,7 @@ export const PCBQuotePage: React.FC = () => {
             <span className="text-[11px] text-slate-500">Giữ chuột trái để xoay • Cuộn để zoom</span>
           </div>
 
-          <div className="h-[360px] sm:h-[420px] rounded overflow-hidden">
+          <div className="w-full">
             <PCB3DViewer
               maskColor={currentSpec.maskColor}
               surfaceFinish={currentSpec.surfaceFinish}

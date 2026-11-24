@@ -250,6 +250,19 @@ export const db = {
     return orders[index];
   },
 
+  async deleteCommerceOrder(id: string): Promise<boolean> {
+    const orders = await this.getCommerceOrders();
+    const filtered = orders.filter(o => o.id !== id && o.orderCode !== id);
+    setLocal(STORAGE_KEYS.ORDERS, filtered);
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('orders').delete().or(`id.eq.${id},orderCode.eq.${id}`);
+      } catch (e) {}
+    }
+    return true;
+  },
+
   // ----------------------------------------
   // PCB REQUESTS
   // ----------------------------------------
@@ -306,6 +319,19 @@ export const db = {
       } catch (e) {}
     }
     return requests[index];
+  },
+
+  async deletePCBRequest(id: string): Promise<boolean> {
+    const requests = await this.getPCBRequests();
+    const filtered = requests.filter(r => r.id !== id && r.orderCode !== id);
+    setLocal(STORAGE_KEYS.PCB_REQUESTS, filtered);
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('pcb_requests').delete().or(`id.eq.${id},orderCode.eq.${id}`);
+      } catch (e) {}
+    }
+    return true;
   },
 
   // ----------------------------------------

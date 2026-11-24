@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { PCBSpec, PCBRequest, PCBAttachedFile, ServiceType } from '../../lib/types';
 import { estimatePCBPrice, PCB_CONFIG_DATA } from '../../lib/pricing';
 import { analyzeGerberZip, renderGerberStackup } from '../../lib/gerberParser';
+import { fileStorage } from '../../lib/fileStorage';
 import { db } from '../../lib/db';
 import { 
   Plus, 
@@ -219,11 +220,34 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
     if (!fileList || fileList.length === 0) return;
 
     setParsingNotice(null);
-    const newFiles: PCBAttachedFile[] = Array.from(fileList).map(file => ({
-      name: file.name,
-      size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-      type: file.type || 'file',
-    }));
+    const newFiles: PCBAttachedFile[] = await Promise.all(
+      Array.from(fileList).map(async (file) => {
+        // Save to IndexedDB file storage
+        await fileStorage.saveFile(file.name, file);
+
+        // Also generate base64 dataUrl if file < 3MB as instant fallback
+        let dataUrl: string | undefined = undefined;
+        if (file.size < 3 * 1024 * 1024) {
+          try {
+            dataUrl = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = () => resolve('');
+              reader.readAsDataURL(file);
+            });
+          } catch {}
+        }
+
+        return {
+          name: file.name,
+          size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+          type: file.type || 'file',
+          fileKey: file.name,
+          dataUrl: dataUrl,
+          url: dataUrl,
+        };
+      })
+    );
 
     const curFiles = activeSpec.files || [];
     if (curFiles.length + newFiles.length > 5) {

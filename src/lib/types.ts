@@ -172,6 +172,8 @@ export interface PCBAttachedFile {
   size: string;
   url?: string;
   type?: string;
+  fileKey?: string;
+  dataUrl?: string;
   analysis?: GerberAnalysisResult;
 }
 

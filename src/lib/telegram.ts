@@ -3,43 +3,90 @@
 // ==========================================
 import { PCBRequest, CommerceOrder, SystemSettings } from './types';
 
+function escapeHtml(text: any): string {
+  if (text === null || text === undefined) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 export const telegramService = {
   /**
-   * Send arbitrary message to Telegram Bot
+   * Gửi tin nhắn trực tiếp tới Telegram Bot API
+   * Hỗ trợ HTML, tự động dự phòng Plain Text nếu có lỗi cú pháp
    */
   async sendMessage(botToken: string, chatId: string, text: string): Promise<boolean> {
-    if (!botToken || !chatId) return false;
+    const token = (botToken || '').trim();
+    const chat = (chatId || '').trim();
+    if (!token || !chat) {
+      console.warn('Telegram sendMessage: Thiếu Bot Token hoặc Chat ID');
+      return false;
+    }
+
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+
     try {
-      const url = `https://api.telegram.org/bot${botToken.trim()}/sendMessage`;
+      // 1. Thử gửi định dạng HTML
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: chatId.trim(),
+          chat_id: chat,
           text: text,
           parse_mode: 'HTML',
           disable_web_page_preview: true,
         }),
       });
+
       const data = await res.json();
-      return data.ok === true;
+      if (data.ok === true) {
+        return true;
+      }
+
+      // 2. Nếu Telegram báo lỗi cú pháp HTML (ví dụ lỗi tag hoặc ký tự đặc biệt), tự động gửi lại dưới dạng văn bản thuần
+      console.warn('Gửi Telegram dạng HTML không thành công, đang thử lại dạng Plain Text...', data);
+      const plainText = text
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+
+      const retryRes = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chat,
+          text: plainText,
+          disable_web_page_preview: true,
+        }),
+      });
+
+      const retryData = await retryRes.json();
+      if (retryData.ok === true) {
+        return true;
+      }
+
+      console.error('Lỗi gửi Telegram cuối cùng:', retryData);
+      return false;
     } catch (e) {
-      console.error('Lỗi gửi Telegram:', e);
+      console.error('Lỗi kết nối mạng tới Telegram Bot API:', e);
       return false;
     }
   },
 
   /**
-   * Send test message from Admin Settings
+   * Gửi tin nhắn kiểm tra kết nối từ Admin Settings
    */
   async sendTestMessage(botToken: string, chatId: string): Promise<{ success: boolean; message: string }> {
-    if (!botToken.trim() || !chatId.trim()) {
+    if (!botToken?.trim() || !chatId?.trim()) {
       return { success: false, message: 'Vui lòng nhập đầy đủ Telegram Bot Token và Chat ID.' };
     }
     const testText = `
 🔔 <b>THÔNG BÁO THỬ NGHIỆM TELEGRAM BOT</b>
 ━━━━━━━━━━━━━━━━━━
-✅ Kết nối Telegram Bot với website <b>Thế Giới Linh Kiện & PCB</b> thành công!
+✅ Kết nối Telegram Bot với website <b>Thế Giới Linh Kiện &amp; PCB</b> thành công!
 ⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}
 🚀 Hệ thống sẽ tự động gửi thông báo khi có khách đặt mạch in PCB hoặc mua linh kiện.
     `.trim();
@@ -48,70 +95,101 @@ export const telegramService = {
     if (ok) {
       return { success: true, message: 'Đã gửi tin nhắn test thành công tới Telegram!' };
     } else {
-      return { success: false, message: 'Không gửi được tin nhắn. Vui lòng kiểm tra lại Bot Token hoặc Chat ID (chú ý đã bấm /start với bot chưa).' };
+      return { success: false, message: 'Không gửi được tin nhắn. Vui lòng kiểm tra lại Bot Token hoặc Chat ID (chú ý đã bấm /start với bot).' };
     }
   },
 
   /**
-   * Notify new PCB Request
+   * Thông báo yêu cầu gia công PCB / PCBA mới
    */
-  async notifyPCBRequest(req: PCBRequest, settings: SystemSettings): Promise<void> {
-    if (!settings.enableTelegramNotify || !settings.telegramBotToken || !settings.telegramChatId) {
-      return;
+  async notifyPCBRequest(req: PCBRequest, settings?: SystemSettings): Promise<boolean> {
+    const token = (settings?.telegramBotToken || (import.meta as any).env?.VITE_TELEGRAM_BOT_TOKEN || '').trim();
+    const chatId = (settings?.telegramChatId || (import.meta as any).env?.VITE_TELEGRAM_CHAT_ID || '').trim();
+
+    if (!token || !chatId) {
+      console.warn('Bỏ qua thông báo Telegram PCB: Chưa cấu hình Bot Token hoặc Chat ID');
+      return false;
+    }
+
+    if (settings && settings.enableTelegramNotify === false) {
+      console.warn('Thông báo Telegram đang tắt trong cài đặt');
+      return false;
     }
 
     const isAssembly = req.specs?.[0]?.serviceType === 'assembly';
-    const typeTitle = isAssembly ? '🛠 CÓ YÊU CẦU GIA CÔNG HÀN LẮP (PCBA) MỚI!' : '⚡️ CÓ YÊU CẦU GIA CÔNG MẠCH IN (PCB) MỚI!';
+    const typeTitle = isAssembly 
+      ? '🛠 <b>CÓ YÊU CẦU GIA CÔNG HÀN LẮP (PCBA) MỚI!</b>' 
+      : '⚡️ <b>CÓ YÊU CẦU GIA CÔNG MẠCH IN (PCB) MỚI!</b>';
 
     let specDetails = '';
     req.specs?.forEach((s, idx) => {
-      specDetails += `\n🔹 <b>Bo #${idx + 1} (${s.tabName}):</b> ${s.width}x${s.height}mm | ${s.quantity} bo | ${s.layers} | ${s.material} | Mạ ${s.surfaceFinish} | Màu ${s.maskColor}`;
+      specDetails += `\n🔹 <b>Bo #${idx + 1} (${escapeHtml(s.tabName)}):</b> ${escapeHtml(String(s.width))}x${escapeHtml(String(s.height))}mm | ${escapeHtml(String(s.quantity))} bo | ${escapeHtml(s.layers)} | ${escapeHtml(s.material)} | Mạ ${escapeHtml(s.surfaceFinish)} | Màu ${escapeHtml(s.maskColor)}`;
       if (s.files && s.files.length > 0) {
-        specDetails += `\n   📎 File: ${s.files.map(f => f.name).join(', ')}`;
+        const fileNames = s.files.map(f => typeof f === 'string' ? f : f.name).join(', ');
+        specDetails += `\n   📎 File: ${escapeHtml(fileNames)}`;
       }
     });
+
+    const safeOrderCode = escapeHtml(req.orderCode);
+    const safeCustomerName = escapeHtml(req.customerName);
+    const safePhone = escapeHtml(req.customerPhone);
+    const safeEmail = req.customerEmail ? escapeHtml(req.customerEmail) : 'Không có';
+    const safeAddress = req.customerAddress ? escapeHtml(req.customerAddress) : 'Không có';
+    const safeNotes = req.notes ? `\n📝 <b>Ghi Chú:</b> ${escapeHtml(req.notes)}` : '';
+    const priceText = req.estimatedPrice ? `${req.estimatedPrice.toLocaleString('vi-VN')} đ` : 'Chờ kỹ thuật viên báo giá';
 
     const text = `
 ${typeTitle}
 ━━━━━━━━━━━━━━━━━━
-📋 <b>Mã Đơn:</b> <code>${req.orderCode}</code>
-👤 <b>Khách Hàng:</b> ${req.customerName}
-📞 <b>Số Điện Thoại:</b> <a href="tel:${req.customerPhone}">${req.customerPhone}</a>
-📧 <b>Email:</b> ${req.customerEmail || 'Không có'}
-📍 <b>Địa Chỉ:</b> ${req.customerAddress || 'Không có'}
-${req.notes ? `📝 <b>Ghi Chú:</b> ${req.notes}\n` : ''}
+📋 <b>Mã Đơn:</b> <code>${safeOrderCode}</code>
+👤 <b>Khách Hàng:</b> ${safeCustomerName}
+📞 <b>Số Điện Thoại:</b> ${safePhone}
+📧 <b>Email:</b> ${safeEmail}
+📍 <b>Địa Chỉ:</b> ${safeAddress}${safeNotes}
 📦 <b>Chi Tiết Yêu Cầu (${req.specs?.length || 1} bo):</b>${specDetails}
 
-💰 <b>Ước Tính Giá:</b> ${req.estimatedPrice ? req.estimatedPrice.toLocaleString('vi-VN') + ' đ' : 'Chờ kỹ thuật viên báo giá'}
+💰 <b>Ước Tính Giá:</b> ${priceText}
 ⏰ <b>Thời Gian:</b> ${new Date().toLocaleString('vi-VN')}
     `.trim();
 
-    await this.sendMessage(settings.telegramBotToken, settings.telegramChatId, text);
+    return await this.sendMessage(token, chatId, text);
   },
 
   /**
-   * Notify new Commerce Order (Linh kiện)
+   * Thông báo đơn hàng mua linh kiện mới
    */
-  async notifyCommerceOrder(order: CommerceOrder, settings: SystemSettings): Promise<void> {
-    if (!settings.enableTelegramNotify || !settings.telegramBotToken || !settings.telegramChatId) {
-      return;
+  async notifyCommerceOrder(order: CommerceOrder, settings?: SystemSettings): Promise<boolean> {
+    const token = (settings?.telegramBotToken || (import.meta as any).env?.VITE_TELEGRAM_BOT_TOKEN || '').trim();
+    const chatId = (settings?.telegramChatId || (import.meta as any).env?.VITE_TELEGRAM_CHAT_ID || '').trim();
+
+    if (!token || !chatId) {
+      console.warn('Bỏ qua thông báo Telegram đơn hàng: Chưa cấu hình Bot Token hoặc Chat ID');
+      return false;
+    }
+
+    if (settings && settings.enableTelegramNotify === false) {
+      return false;
     }
 
     const itemsText = order.items
-      .map(i => `   • ${i.quantity}x ${i.productName} (${(i.price * i.quantity).toLocaleString('vi-VN')} đ)`)
+      .map(i => `   • ${i.quantity}x ${escapeHtml(i.productName)} (${(i.price * i.quantity).toLocaleString('vi-VN')} đ)`)
       .join('\n');
 
     const paymentText = order.paymentMethod === 'cod' ? 'Thanh toán COD' : 'Chuyển khoản VietQR Napas';
+    const safeOrderCode = escapeHtml(order.orderCode);
+    const safeCustomerName = escapeHtml(order.customerName);
+    const safePhone = escapeHtml(order.customerPhone);
+    const safeAddress = escapeHtml(order.customerAddress);
+    const safeNotes = order.notes ? `\n📝 <b>Ghi Chú:</b> ${escapeHtml(order.notes)}` : '';
 
     const text = `
 🛒 <b>CÓ ĐƠN HÀNG MUA LINH KIỆN MỚI!</b>
 ━━━━━━━━━━━━━━━━━━
-📋 <b>Mã Đơn:</b> <code>${order.orderCode}</code>
-👤 <b>Người Nhận:</b> ${order.customerName}
-📞 <b>Số Điện Thoại:</b> <a href="tel:${order.customerPhone}">${order.customerPhone}</a>
-📍 <b>Địa Chỉ Giao:</b> ${order.customerAddress}
-💳 <b>Hình Thức:</b> ${paymentText}
-${order.notes ? `📝 <b>Ghi Chú:</b> ${order.notes}\n` : ''}
+📋 <b>Mã Đơn:</b> <code>${safeOrderCode}</code>
+👤 <b>Người Nhận:</b> ${safeCustomerName}
+📞 <b>Số Điện Thoại:</b> ${safePhone}
+📍 <b>Địa Chỉ Giao:</b> ${safeAddress}
+💳 <b>Hình Thức:</b> ${paymentText}${safeNotes}
 📦 <b>Sản Phẩm Đặt Mua:</b>
 ${itemsText}
 
@@ -120,6 +198,6 @@ ${itemsText}
 ⏰ <b>Thời Gian:</b> ${new Date().toLocaleString('vi-VN')}
     `.trim();
 
-    await this.sendMessage(settings.telegramBotToken, settings.telegramChatId, text);
+    return await this.sendMessage(token, chatId, text);
   }
 };

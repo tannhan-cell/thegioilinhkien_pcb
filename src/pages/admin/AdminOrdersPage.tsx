@@ -13,7 +13,8 @@ import {
   Save, 
   Package,
   MapPin,
-  PhoneCall
+  PhoneCall,
+  Trash2
 } from 'lucide-react';
 
 export const AdminOrdersPage: React.FC = () => {
@@ -65,6 +66,16 @@ export const AdminOrdersPage: React.FC = () => {
     }
   };
 
+  const handleDeleteOrder = async (id: string, code: string) => {
+    if (window.confirm(`Bạn có chắc chắn muốn xóa đơn hàng ${code} không? Thao tác này sẽ xóa vĩnh viễn đơn.`)) {
+      await db.deleteCommerceOrder(id);
+      await fetchOrders();
+      if (selectedOrder?.id === id) {
+        setSelectedOrder(null);
+      }
+    }
+  };
+
   const filteredOrders = orders.filter(o => {
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
@@ -77,14 +88,14 @@ export const AdminOrdersPage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in font-sans">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold font-display text-slate-900">
             Quản Lý Đơn Hàng Mua Linh Kiện
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Theo dõi tình trạng đơn đặt linh kiện, cập nhật thanh toán và trạng thái giao hàng
+            Theo dõi tình trạng đơn đặt linh kiện, cập nhật thanh toán, trạng thái giao hàng và xóa đơn khi cần
           </p>
         </div>
 
@@ -98,10 +109,10 @@ export const AdminOrdersPage: React.FC = () => {
         <div className="relative flex-1">
           <input
             type="text"
-            placeholder="Tìm theo Mã đơn, Tên người nhận hoặc Số điện thoại..."
+            placeholder="Tìm theo Mã đơn (TLK-...), Tên khách hoặc Số điện thoại..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 font-mono"
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-mono focus:ring-2 focus:ring-blue-500"
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
         </div>
@@ -110,7 +121,7 @@ export const AdminOrdersPage: React.FC = () => {
       {/* Orders Table */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-slate-400 text-xs">Đang tải đơn hàng...</div>
+          <div className="p-12 text-center text-slate-400 text-xs">Đang tải danh sách...</div>
         ) : filteredOrders.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-xs">Chưa có đơn hàng linh kiện nào.</div>
         ) : (
@@ -121,10 +132,10 @@ export const AdminOrdersPage: React.FC = () => {
                   <th className="py-3.5 px-4">Mã Đơn / Ngày</th>
                   <th className="py-3.5 px-4">Khách Hàng</th>
                   <th className="py-3.5 px-4">Tổng Tiền</th>
-                  <th className="py-3.5 px-4">Hình Thức</th>
+                  <th className="py-3.5 px-4">Phương Thức</th>
                   <th className="py-3.5 px-4">Thanh Toán</th>
-                  <th className="py-3.5 px-4">Giao Hàng</th>
-                  <th className="py-3.5 px-4 text-right">Chi Tiết</th>
+                  <th className="py-3.5 px-4">Vận Chuyển</th>
+                  <th className="py-3.5 px-4 text-right">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -142,11 +153,11 @@ export const AdminOrdersPage: React.FC = () => {
                       <div className="font-mono text-slate-500 text-[11px]">{o.customerPhone}</div>
                     </td>
 
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                    <td className="py-3.5 px-4 font-mono font-bold text-blue-700">
                       {o.totalAmount.toLocaleString('vi-VN')} đ
                     </td>
 
-                    <td className="py-3.5 px-4 text-[11px]">
+                    <td className="py-3.5 px-4 text-slate-600">
                       {o.paymentMethod === 'cod' ? 'Thanh toán COD' : 'VietQR Chuyển khoản'}
                     </td>
 
@@ -167,13 +178,23 @@ export const AdminOrdersPage: React.FC = () => {
                     </td>
 
                     <td className="py-3.5 px-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => openModal(o)}
-                        className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg font-semibold transition text-xs"
-                      >
-                        Xem & Cập nhật
-                      </button>
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openModal(o)}
+                          className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg font-semibold transition text-xs"
+                        >
+                          Xem &amp; Cập nhật
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteOrder(o.id, o.orderCode)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                          title={`Xóa đơn ${o.orderCode}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -183,11 +204,12 @@ export const AdminOrdersPage: React.FC = () => {
         )}
       </div>
 
-      {/* Detail Modal */}
+      {/* Detail Modal (ĐÃ SỬA CĂN CHỈNH KHÔNG BỊ CHE KHÚC TRÊN) */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-2xl max-h-[90vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
-            <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 to-blue-950 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 overflow-y-auto p-4 sm:p-6 flex justify-center items-start sm:items-center bg-slate-950/75 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-2xl max-h-[90vh] my-auto bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 to-blue-950 text-white flex items-center justify-between shrink-0 sticky top-0 z-10">
               <div>
                 <span className="text-xs font-mono text-cyan-400">CHI TIẾT ĐƠN HÀNG LINH KIỆN</span>
                 <h3 className="text-lg font-bold font-mono">{selectedOrder.orderCode}</h3>
@@ -195,13 +217,15 @@ export const AdminOrdersPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSelectedOrder(null)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg"
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg transition"
+                title="Đóng"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs flex-1">
+            {/* Content Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto min-h-0 space-y-5 text-xs flex-1">
               <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
                 <div><b>Người nhận:</b> {selectedOrder.customerName} - <b>SĐT:</b> {selectedOrder.customerPhone}</div>
                 <div><b>Địa chỉ:</b> {selectedOrder.customerAddress}</div>
@@ -257,23 +281,35 @@ export const AdminOrdersPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3">
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
               <button
                 type="button"
-                onClick={() => setSelectedOrder(null)}
-                className="px-4 py-2 border border-slate-300 text-slate-600 rounded-xl text-xs font-semibold"
+                onClick={() => handleDeleteOrder(selectedOrder.id, selectedOrder.orderCode)}
+                className="px-4 py-2 border border-red-200 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-xl text-xs font-semibold transition flex items-center gap-1.5"
+                title="Xóa vĩnh viễn đơn hàng này"
               >
-                Đóng
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Xóa Đơn Này</span>
               </button>
-              <button
-                type="button"
-                disabled={isSaving}
-                onClick={handleSaveModal}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-              >
-                {isSaving ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                <span>Lưu Cập Nhật</span>
-              </button>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrder(null)}
+                  className="px-4 py-2 border border-slate-300 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveModal}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition flex items-center gap-1.5 shadow"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Lưu Cập Nhật</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { PCBRequest } from '../../lib/types';
 import { CheckCircle2, Copy, Check, MessageCircle, X, Search } from 'lucide-react';
 import { PCB_CONFIG_DATA } from '../../lib/pricing';
@@ -24,9 +25,9 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
     setTimeout(() => setCopied(false), 2500);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden text-center p-6 sm:p-8 space-y-5">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] overflow-y-auto p-4 sm:p-6 flex justify-center items-start sm:items-center bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+      <div className="relative w-full max-w-lg my-auto bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden text-center p-6 sm:p-8 space-y-5">
         {/* Close Button */}
         <button
           type="button"
@@ -99,6 +100,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
           </a>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

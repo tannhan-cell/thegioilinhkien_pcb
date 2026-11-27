@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { db } from '../../lib/db';
 import { PCBRequest, PCBOrderStatus, PCBAttachedFile } from '../../lib/types';
 import { PCB_CONFIG_DATA } from '../../lib/pricing';
@@ -265,10 +266,10 @@ export const AdminPCBRequestsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Detail & Quote Modal (ĐÃ SỬA CĂN CHỈNH KHÔNG BỊ CHE KHÚC TRÊN) */}
-      {selectedRequest && (
-        <div className="fixed inset-0 z-50 overflow-y-auto p-4 sm:p-6 flex justify-center items-start sm:items-center bg-slate-950/75 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-3xl max-h-[90vh] my-auto bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+      {/* Detail & Quote Modal (SỬ DỤNG PORTAL ĐỂ 100% TOÀN MÀN HÌNH KHÔNG BỊ TRÀN HAY CẮT CẢ TRÊN LẪN DƯỚI) */}
+      {selectedRequest && createPortal(
+        <div className="fixed inset-0 z-[9999] overflow-y-auto p-4 sm:p-6 flex justify-center items-start sm:items-center bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-3xl max-h-[85vh] my-auto bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
             {/* Header (Cố định ở trên, luôn nhìn thấy đầy đủ) */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 to-blue-950 text-white flex items-center justify-between shrink-0 sticky top-0 z-10">
               <div>
@@ -426,12 +427,12 @@ export const AdminPCBRequestsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Footer Buttons (Có nút xóa đơn & nút lưu) */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+            {/* Footer Buttons (Ghim cố định ở dưới, không bao giờ bị che) */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0 sticky bottom-0 z-10">
               <button
                 type="button"
                 onClick={() => handleDeleteRequest(selectedRequest.id, selectedRequest.orderCode)}
-                className="px-4 py-2 border border-red-200 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-xl text-xs font-semibold transition flex items-center gap-1.5"
+                className="px-4 py-2 border border-red-200 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
                 title="Xóa vĩnh viễn đơn yêu cầu này"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -442,7 +443,7 @@ export const AdminPCBRequestsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSelectedRequest(null)}
-                  className="px-4 py-2 border border-slate-300 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold transition"
+                  className="px-4 py-2 border border-slate-300 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold transition cursor-pointer"
                 >
                   Đóng
                 </button>
@@ -450,7 +451,7 @@ export const AdminPCBRequestsPage: React.FC = () => {
                   type="button"
                   disabled={isSaving}
                   onClick={handleSaveModal}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow cursor-pointer"
                 >
                   {isSaving ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                   <span>Lưu Thay Đổi &amp; Gửi Báo Giá</span>
@@ -458,7 +459,8 @@ export const AdminPCBRequestsPage: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

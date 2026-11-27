@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { db } from '../../lib/db';
 import { PCBRequest, CommerceOrder } from '../../lib/types';
 import { PCB_CONFIG_DATA } from '../../lib/pricing';
@@ -72,11 +73,11 @@ export const OrderLookupModal: React.FC<OrderLookupModalProps> = ({
     { step: 6, label: 'Hoàn tất', color: 'bg-teal-500' },
   ];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-3xl max-h-[90vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] overflow-y-auto p-4 sm:p-6 flex justify-center items-start sm:items-center bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+      <div className="relative w-full max-w-3xl max-h-[85vh] my-auto bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
         {/* Modal Header */}
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 to-blue-950 text-white flex items-center justify-between">
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 to-blue-950 text-white flex items-center justify-between shrink-0 sticky top-0 z-10">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-blue-600/30 text-blue-400 border border-blue-500/30">
               <Search className="w-5 h-5" />
@@ -351,6 +352,7 @@ export const OrderLookupModal: React.FC<OrderLookupModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

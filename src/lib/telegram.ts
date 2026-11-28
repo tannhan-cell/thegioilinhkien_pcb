@@ -2,6 +2,7 @@
 // TELEGRAM BOT NOTIFICATION SERVICE
 // ==========================================
 import { PCBRequest, CommerceOrder, SystemSettings } from './types';
+import { estimatePCBPrice } from './pricing';
 
 function escapeHtml(text: any): string {
   if (text === null || text === undefined) return '';
@@ -121,14 +122,28 @@ export const telegramService = {
       ? '🛠 <b>CÓ YÊU CẦU GIA CÔNG HÀN LẮP (PCBA) MỚI!</b>' 
       : '⚡️ <b>CÓ YÊU CẦU GIA CÔNG MẠCH IN (PCB) MỚI!</b>';
 
+    let totalCalculated = 0;
+    let hasEstimate = false;
     let specDetails = '';
     req.specs?.forEach((s, idx) => {
-      specDetails += `\n🔹 <b>Bo #${idx + 1} (${escapeHtml(s.tabName)}):</b> ${escapeHtml(String(s.width))}x${escapeHtml(String(s.height))}mm | ${escapeHtml(String(s.quantity))} bo | ${escapeHtml(s.layers)} | ${escapeHtml(s.material)} | Mạ ${escapeHtml(s.surfaceFinish)} | Màu ${escapeHtml(s.maskColor)}`;
+      const boPrice = estimatePCBPrice(s);
+      if (boPrice && boPrice > 0) {
+        totalCalculated += boPrice;
+        hasEstimate = true;
+      }
+      const priceSub = boPrice ? ` | 💵 ~${boPrice.toLocaleString('vi-VN')} đ` : '';
+      specDetails += `\n🔹 <b>Bo #${idx + 1} (${escapeHtml(s.tabName)}):</b> ${escapeHtml(String(s.width))}x${escapeHtml(String(s.height))}mm | ${escapeHtml(String(s.quantity))} bo | ${escapeHtml(s.layers)} | ${escapeHtml(s.material)} | Mạ ${escapeHtml(s.surfaceFinish)} | Màu ${escapeHtml(s.maskColor)}${priceSub}`;
       if (s.files && s.files.length > 0) {
         const fileNames = s.files.map(f => typeof f === 'string' ? f : f.name).join(', ');
         specDetails += `\n   📎 File: ${escapeHtml(fileNames)}`;
       }
     });
+
+    const boCount = req.specs?.length || 1;
+    const finalPrice = req.estimatedPrice || (hasEstimate ? totalCalculated : null);
+    const priceText = finalPrice 
+      ? `${finalPrice.toLocaleString('vi-VN')} đ ${boCount > 1 ? `(Tổng cộng ${boCount} bo)` : ''}`
+      : 'Chờ kỹ thuật viên báo giá';
 
     const safeOrderCode = escapeHtml(req.orderCode);
     const safeCustomerName = escapeHtml(req.customerName);
@@ -136,7 +151,6 @@ export const telegramService = {
     const safeEmail = req.customerEmail ? escapeHtml(req.customerEmail) : 'Không có';
     const safeAddress = req.customerAddress ? escapeHtml(req.customerAddress) : 'Không có';
     const safeNotes = req.notes ? `\n📝 <b>Ghi Chú:</b> ${escapeHtml(req.notes)}` : '';
-    const priceText = req.estimatedPrice ? `${req.estimatedPrice.toLocaleString('vi-VN')} đ` : 'Chờ kỹ thuật viên báo giá';
 
     const text = `
 ${typeTitle}
@@ -146,7 +160,7 @@ ${typeTitle}
 📞 <b>Số Điện Thoại:</b> ${safePhone}
 📧 <b>Email:</b> ${safeEmail}
 📍 <b>Địa Chỉ:</b> ${safeAddress}${safeNotes}
-📦 <b>Chi Tiết Yêu Cầu (${req.specs?.length || 1} bo):</b>${specDetails}
+📦 <b>Chi Tiết Yêu Cầu (${boCount} bo):</b>${specDetails}
 
 💰 <b>Ước Tính Giá:</b> ${priceText}
 ⏰ <b>Thời Gian:</b> ${new Date().toLocaleString('vi-VN')}

@@ -92,7 +92,11 @@ export const db = {
         if (!error && data) return data as SystemSettings;
       } catch (e) {}
     }
-    return getLocal<SystemSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS);
+    const s = getLocal<SystemSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS);
+    if (!s.email || s.email.includes('thegioilinhkienpcb.vn')) {
+      s.email = 'votannhan8@gmail.com';
+    }
+    return s;
   },
 
   async saveSettings(settings: SystemSettings): Promise<SystemSettings> {

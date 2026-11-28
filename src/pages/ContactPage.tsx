@@ -53,7 +53,9 @@ export const ContactPage: React.FC = () => {
               </div>
               <div>
                 <span className="text-xs text-slate-400 font-mono block">EMAIL LIÊN HỆ:</span>
-                <span className="font-bold text-slate-800">contact@thegioilinhkienpcb.vn</span>
+                <a href="mailto:votannhan8@gmail.com" className="font-bold text-slate-800 hover:text-blue-600 transition">
+                  votannhan8@gmail.com
+                </a>
               </div>
             </div>
 

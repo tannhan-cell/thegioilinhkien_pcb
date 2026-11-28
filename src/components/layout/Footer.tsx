@@ -78,6 +78,10 @@ export const Footer: React.FC = () => {
                 <span>Zalo Kỹ Thuật: {PCB_CONFIG_DATA.CONTACT.zaloPhone}</span>
               </div>
               <div className="flex items-center gap-2">
+                <Mail className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Email hỗ trợ: <a href="mailto:votannhan8@gmail.com" className="text-white hover:underline">votannhan8@gmail.com</a></span>
+              </div>
+              <div className="flex items-center gap-2">
                 <MapPin className="w-3.5 h-3.5 text-rose-400" />
                 <span>Khu vực: Hà Nội & TP. Hồ Chí Minh (Giao hàng toàn quốc)</span>
               </div>

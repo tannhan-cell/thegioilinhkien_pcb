@@ -49,10 +49,13 @@ export const SupportPage: React.FC = () => {
 
         {/* Section 3: Kênh hỗ trợ trực tiếp */}
         <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-5 font-mono text-xs">
-          <div className="space-y-1 text-center sm:text-left">
+          <div className="space-y-1.5 text-center sm:text-left">
             <span className="text-sky-400 font-bold block uppercase tracking-wider text-[11px]">HOTLINE & ZALO KỸ THUẬT VIÊN TRỰC TIẾP</span>
             <div className="text-xl sm:text-2xl font-black text-white">{PCB_CONFIG_DATA.CONTACT.hotlineDisplay}</div>
             <div className="text-slate-400 font-sans text-xs">Hỗ trợ từ 7h30 đến 22h00 các ngày trong tuần (kể cả Thứ 7 & Chủ Nhật)</div>
+            <div className="text-sky-300 font-mono text-xs pt-0.5">
+              Email nhận hỗ trợ: <a href="mailto:votannhan8@gmail.com" className="underline hover:text-white font-bold">votannhan8@gmail.com</a>
+            </div>
           </div>
           <div className="flex items-center gap-2.5 shrink-0">
             <a

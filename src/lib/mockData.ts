@@ -5,7 +5,7 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   hotline: '0392.733.577',
   zaloPhone: '0392733577',
   facebookUrl: 'https://www.facebook.com/nhan.votan.395',
-  email: 'contact@thegioilinhkienpcb.vn',
+  email: 'votannhan8@gmail.com',
   address: 'Hà Nội & TP. Hồ Chí Minh (Giao hàng toàn quốc)',
   bankName: 'MBBank (Quân Đội)',
   bankAccount: '0392733577',

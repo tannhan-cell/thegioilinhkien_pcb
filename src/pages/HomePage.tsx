@@ -101,53 +101,35 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenLookup }) => {
           </div>
         </div>
 
-        {/* Right: Hero Banner + Working Hours Box (Col 9) */}
-        <div className="lg:col-span-9 space-y-4">
-          <div className="relative rounded-lg overflow-hidden border border-slate-200 shadow-sm bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white min-h-[260px] sm:min-h-[300px] flex flex-col justify-between p-6 sm:p-8">
-            {/* Background Circuit Decors */}
-            <div className="absolute inset-0 opacity-15 pointer-events-none bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:16px_16px]" />
-            
-            {/* Top Row: Working Hours Box (Y hệt ảnh góc trái trên của ICDAYROI) */}
-            <div className="relative z-10 self-start p-3 bg-black/60 backdrop-blur border border-sky-400/30 rounded-lg text-xs space-y-1 font-mono text-slate-200 max-w-xs shadow-lg">
-              <div className="font-bold text-sky-300 flex items-center gap-1.5 uppercase text-[11px]">
-                <Clock className="w-3.5 h-3.5 text-sky-400" />
-                <span>Thời gian làm việc</span>
-              </div>
-              <div>T2 - T6: Sáng 7h30 &gt; 12h00 • Chiều 13h30 &gt; 18h00</div>
-              <div>T7 - CN: Sáng 8h00 &gt; 12h00 • Chiều 13h30 &gt; 17h00</div>
-            </div>
+        {/* Right: Hero Banner (Col 9) - Đã thay ảnh banner chuẩn theo hình */}
+        <div className="lg:col-span-9 space-y-3.5">
+          <div className="relative rounded-lg overflow-hidden border border-slate-200 shadow-xs bg-slate-900 group">
+            <Link to="/products" className="block">
+              <img 
+                src="/images/banner-hero.jpg" 
+                alt="Chuyên phân phối sỉ lẻ linh kiện điện tử & gia công bo mạch PCB" 
+                className="w-full h-auto object-cover block"
+              />
+            </Link>
+          </div>
 
-            {/* Middle Big Heading */}
-            <div className="relative z-10 my-4 space-y-2">
-              <div className="inline-block px-3 py-1 rounded bg-sky-500/20 text-sky-300 font-mono text-xs font-bold uppercase tracking-wider border border-sky-500/40">
-                CHUYÊN PHÂN PHỐI SỈ LẺ CÁC LOẠI
-              </div>
-              <h1 className="text-2xl sm:text-4xl font-black text-white font-display tracking-tight">
-                LINH KIỆN ĐIỆN TỬ & GIA CÔNG BO MẠCH PCB
-              </h1>
-              <p className="text-slate-300 text-xs sm:text-sm max-w-xl">
-                Báo giá tự động trực tuyến • Xem mạch 3D WebGL • Tự động đo kích thước từ file Gerber • Giao hàng toàn quốc
-              </p>
-            </div>
+          {/* Quick Actions cho Gia Công Bo Mạch & Xem 3D */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to="/pcb-quote?service=pcb"
+              className="flex-1 sm:flex-initial px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs uppercase tracking-wider transition shadow-xs flex items-center justify-center gap-2"
+            >
+              <Layers className="w-4 h-4" />
+              <span>ĐẶT GIA CÔNG MẠCH IN (149K)</span>
+            </Link>
 
-            {/* Bottom Actions */}
-            <div className="relative z-10 flex flex-wrap items-center gap-3">
-              <Link
-                to="/pcb-quote?service=pcb"
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs uppercase tracking-wider transition shadow-md flex items-center gap-2"
-              >
-                <Layers className="w-4 h-4" />
-                <span>ĐẶT GIA CÔNG MẠCH IN (149K)</span>
-              </Link>
-
-              <Link
-                to="/pcb-quote#viewer3d"
-                className="px-5 py-2.5 bg-sky-950/80 hover:bg-sky-900 text-sky-300 border border-sky-500/50 font-bold rounded-lg text-xs uppercase tracking-wider transition flex items-center gap-2"
-              >
-                <Eye className="w-4 h-4 text-sky-400" />
-                <span>XEM 3D GERBER TRỰC TUYẾN</span>
-              </Link>
-            </div>
+            <Link
+              to="/pcb-quote#viewer3d"
+              className="flex-1 sm:flex-initial px-5 py-2.5 bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 font-bold rounded-lg text-xs uppercase tracking-wider transition shadow-2xs flex items-center justify-center gap-2"
+            >
+              <Eye className="w-4 h-4 text-blue-600" />
+              <span>XEM 3D GERBER TRỰC TUYẾN</span>
+            </Link>
           </div>
 
           {/* Quick Value Badges */}
@@ -232,7 +214,43 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenLookup }) => {
         </div>
       </section>
 
-      {/* 4. DUAL PCB SERVICES SHOWCASE BANNER */}
+      {/* 4. SEO LOCAL CONTENT — Thủ Đức, Làng Đại Học, TP.HCM */}
+      <section className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-xs">
+        <div className="max-w-4xl mx-auto space-y-3">
+          <h2 className="text-base font-bold text-slate-900 uppercase tracking-wide border-b border-slate-200 pb-2">
+            Linh Kiện Điện Tử & Gia Công Mạch In PCB Tại Thủ Đức, TP. Hồ Chí Minh
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-slate-700 leading-relaxed">
+            <div className="space-y-2">
+              <p>
+                <span className="font-bold text-slate-900">Thế Giới Linh Kiện & PCB</span> tọa lạc tại{' '}
+                <span className="font-semibold text-blue-700">Làng Đại Học, Phường Đông Hòa, TP. Thủ Đức, TP. Hồ Chí Minh</span> —
+                chuyên cung cấp linh kiện điện tử Arduino, Raspberry Pi, IC, cảm biến, module cho sinh viên{' '}
+                <span className="font-semibold">ĐHQG TP.HCM, ĐH Bách Khoa, ĐH Quốc Tế</span> và toàn khu vực Thủ Đức.
+              </p>
+              <p>
+                Dịch vụ <span className="font-semibold text-[#004d26]">gia công mạch in PCB</span> từ 1 đến 32 lớp, giá từ{' '}
+                <span className="font-bold text-red-600">149.000đ</span> với công nghệ xem <span className="font-semibold">3D Gerber WebGL</span> trực tuyến,
+                tự động đo kích thước từ file Gerber và báo giá tức thì.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <p>
+                Dịch vụ <span className="font-semibold text-[#004d26]">hàn lắp linh kiện SMT/PCBA</span> chuyên nghiệp,
+                hỗ trợ 0402, BGA, QFN, kiểm tra quang học AOI sau lò Reflow.
+                Giao hàng toàn quốc qua <span className="font-semibold">ViettelPost, GHTK, VNPost</span>.
+              </p>
+              <p>
+                Phục vụ khách hàng tại <span className="font-semibold">Thủ Đức, Bình Dương, Đồng Nai, TP.HCM</span> và toàn quốc.
+                Hỗ trợ sinh viên Làng Đại Học, quận 9 (Thủ Đức), Dĩ An Bình Dương.
+                Hotline Zalo: <span className="font-bold text-blue-700">0392.733.577</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 5. DUAL PCB SERVICES SHOWCASE BANNER */}
       <section className="bg-gradient-to-r from-blue-700 via-sky-600 to-blue-800 text-white rounded-xl p-6 sm:p-8 shadow-md">
         <div className="max-w-4xl mx-auto text-center space-y-4">
           <span className="px-3 py-1 rounded-full bg-white/20 text-white text-xs font-mono font-bold uppercase tracking-wider inline-block">

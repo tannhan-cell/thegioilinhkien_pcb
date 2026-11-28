@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin270906
+Disallow: /admin270906/
+
+Sitemap: https://thegioilinhkienpcb.vn/sitemap.xml

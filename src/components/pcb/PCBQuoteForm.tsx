@@ -111,13 +111,14 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
 
   const isPCB = activeService === 'pcb';
 
-  // Load customer profile from DB CHỈ KHI khách đã từng lưu / đặt hàng từ lần trước
+  // Load profile từ localStorage nếu khách đã nhập lần trước
   useEffect(() => {
     const profile = db.getCustomerProfile();
     if (profile && profile.name) setCustomerName(profile.name);
     if (profile && profile.phone) {
       setCustomerPhone(profile.phone);
-      setCustomerCode('CXT' + profile.phone.replace(/\D/g, '').slice(-6));
+      const digits = profile.phone.replace(/\D/g, '');
+      if (digits.length >= 6) setCustomerCode('VTN' + digits.slice(-6));
     }
     if (profile && profile.email) setCustomerEmail(profile.email);
     if (profile && profile.address) setCustomerAddress(profile.address);
@@ -292,7 +293,17 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
     updateCurrentSpecField({ files: updated });
   };
 
-  const estimatedPrice = isPCB ? estimatePCBPrice(activeSpec) : null;
+  // Tính giá ước tính riêng cho tab hiện tại
+  const estimatedPriceCurrentTab = isPCB ? estimatePCBPrice(activeSpec) : null;
+
+  // Tính TỔNG GIÁ ước tính cho TẤT CẢ các bo/file mạch in trong đơn
+  const currentSpecsList = isPCB ? Object.values(pcbSpecs) : Object.values(assemblySpecs);
+  const totalEstimatedPrice = isPCB 
+    ? currentSpecsList.reduce((sum, s) => {
+        const p = estimatePCBPrice(s);
+        return sum + (p || 0);
+      }, 0)
+    : null;
 
   // Handle Form Submit
   const handleSubmitQuote = async (e: React.FormEvent) => {
@@ -314,11 +325,6 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
       return;
     }
 
-    if (!customerPhone.trim() || customerPhone.replace(/\D/g, '').length < 9) {
-      setErrorMessage('Vui lòng nhập Số điện thoại hợp lệ (tối thiểu 9 chữ số) để kỹ thuật viên liên hệ báo giá!');
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       db.saveCustomerProfile({
@@ -328,17 +334,16 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
         address: customerAddress,
       });
 
-      const currentSpecsList = isPCB ? Object.values(pcbSpecs) : Object.values(assemblySpecs);
       const allFileNames = currentSpecsList.flatMap(s => (s.files || []).map(f => f.name));
 
       const newRequest = await db.createPCBRequest({
-        customerName: customerName || 'Khách Hàng',
+        customerName: customerName.trim() || 'Khách Hàng',
         customerPhone: customerPhone.trim(),
         customerEmail: customerEmail.trim() || undefined,
         customerAddress: customerAddress.trim() || undefined,
         notes: notes.trim() || undefined,
         specs: currentSpecsList,
-        estimatedPrice: estimatedPrice || null,
+        estimatedPrice: totalEstimatedPrice && totalEstimatedPrice > 0 ? totalEstimatedPrice : null,
         files: allFileNames,
       });
 
@@ -368,8 +373,8 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
         {/* If assembly: Show red notes banner as in Image 3 */}
         {!isPCB && (
           <div className="p-3 bg-red-50/80 border border-red-200 text-red-700 text-xs space-y-1 font-medium leading-relaxed">
-            <div>• Quý khách gửi file và yêu cầu đến email <b>smt@thegioilinhkienpcb.vn</b> hoặc đặt online với form dưới</div>
-            <div>• CXT cam kết bảo mật file thiết kế của khách hàng</div>
+            <div>• Quý khách gửi file và yêu cầu đến email <b>votannhan8@gmail.com</b> hoặc đặt online với form dưới</div>
+            <div>• VTN cam kết bảo mật file thiết kế của khách hàng</div>
             <div>• Nếu quý khách đã đặt linh kiện, mạch in vui lòng nhập mã đơn hàng tương ứng</div>
             <div>• File đính kèm bao gồm: <b>BOM + Gerber + Pick and Place file</b>. Hoặc: <b>BOM + PCB file</b></div>
             <div>• Thêm <b>TAB THÔNG SỐ</b> để đặt thêm mạch cần hàn lắp</div>
@@ -383,7 +388,7 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
               <label className="text-[12px] font-medium text-slate-600">Mã KH / Số ĐT:</label>
               <input
                 type="text"
-                placeholder="Tự động tạo theo SĐT..."
+                placeholder="VTN... (Tự động theo SĐT)"
                 value={customerCode}
                 onChange={(e) => setCustomerCode(e.target.value)}
                 className="col-span-2 px-2.5 py-1 bg-slate-50 border border-slate-300 rounded text-xs font-mono"
@@ -409,11 +414,11 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
                 value={customerPhone}
                 onChange={(e) => {
                   setCustomerPhone(e.target.value);
-                  if (!customerCode || customerCode.startsWith('CXT')) {
-                    const digits = e.target.value.replace(/\D/g, '');
-                    if (digits.length >= 6) {
-                      setCustomerCode('CXT' + digits.slice(-6));
-                    }
+                  const digits = e.target.value.replace(/\D/g, '');
+                  if (digits.length >= 6) {
+                    setCustomerCode('VTN' + digits.slice(-6));
+                  } else if (!customerCode || customerCode.startsWith('VTN') || customerCode.startsWith('CXT')) {
+                    setCustomerCode(digits ? 'VTN' + digits : '');
                   }
                 }}
                 className="col-span-2 px-2.5 py-1 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-blue-700"
@@ -1031,17 +1036,28 @@ export const PCBQuoteForm: React.FC<PCBQuoteFormProps> = ({
 
         {/* Giá dự kiến & Nút Submit YÊU CẦU BÁO GIÁ */}
         <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-xs">
-            <span className="text-slate-500">Giá dự kiến tham khảo: </span>
-            <span className="font-mono font-bold text-lg text-[#004d26]">
-              {estimatedPrice ? `${estimatedPrice.toLocaleString('vi-VN')} đ` : 'Báo giá trực tiếp'}
-            </span>
+          <div className="text-xs space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-600 font-medium">
+                {currentSpecsList.length > 1 ? `Ước tính tổng tiền (${currentSpecsList.length} bo):` : 'Ước tính giá tham khảo:'}
+              </span>
+              <span className="font-mono font-bold text-lg text-[#004d26]">
+                {totalEstimatedPrice && totalEstimatedPrice > 0 
+                  ? `${totalEstimatedPrice.toLocaleString('vi-VN')} đ` 
+                  : 'Báo giá trực tiếp'}
+              </span>
+            </div>
+            {currentSpecsList.length > 1 && estimatedPriceCurrentTab && (
+              <div className="text-[11px] text-slate-500 font-mono">
+                (Đang xem {activeSpec.tabName || `Thông số ${currentTab}`}: ~{estimatedPriceCurrentTab.toLocaleString('vi-VN')} đ)
+              </div>
+            )}
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full sm:w-auto px-8 py-3 bg-[#004d26] hover:bg-[#00381c] text-white font-bold text-xs uppercase tracking-wider rounded transition shadow flex items-center justify-center gap-2 disabled:opacity-60"
+            className="w-full sm:w-auto px-8 py-3 bg-[#004d26] hover:bg-[#00381c] text-white font-bold text-xs uppercase tracking-wider rounded transition shadow flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
           >
             {isSubmitting ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
